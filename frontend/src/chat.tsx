@@ -1,3 +1,5 @@
+import { questionSchema, resolveQuestion, createQuestionHandler } from "./lib/question";
+import { QuestionChoices } from "./question-choices";
 import { useLanguage } from "./locale";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HttpAgent } from "@ag-ui/client";
@@ -75,9 +77,22 @@ function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, ch
     handler: async (args, { toolCall }) => ingredientsHandler(args, toolCall.id),
     render: ({ status, result }) => <p role="status">{status === ToolCallStatus.Complete ? result?.includes("not updated") ? t("食材更新失敗，請在對話中再試一次。") : t("手邊食材已更新。") : t("正在更新手邊食材…")}</p>,
   }, [ingredientsHandler, language]);
+  const questionHandler = useMemo(() => createQuestionHandler(), []);
+  useFrontendTool({
+    name: "ask_question",
+    description: "Ask a concise cooking or revision question with 2–4 relevant clickable options. Each option has a short label and a complete answer to send as the user's chat message. Use the selected interaction language. Free-text replies remain available. For an unknown ingredient inventory, set topic to ingredient_plan to display the built-in recipe-and-shopping vs. list-my-ingredients choices. Supply a question and two options; the app localizes the built-in choices. For other questions, use topic general. Do not guess inventory items. Ask one question and wait for the user's reply.",
+    parameters: questionSchema,
+    followUp: false,
+    handler: async (args, { toolCall }) => questionHandler(args, toolCall.id),
+    render: ({ args, toolCallId, status, result }) => {
+      if (result?.includes("not displayed")) return <p role="status">{t("請在對話中輸入你的回答。")}</p>;
+      const parsed = questionSchema.safeParse(args);
+      return parsed.success ? <QuestionChoices question={resolveQuestion(parsed.data, language)} toolCallId={toolCallId} complete={status === ToolCallStatus.Complete}/> : <p>{t("正在整理可選的回答…")}</p>;
+    },
+  }, [language, questionHandler]);
   const handler = useMemo(() => createRecipeHandler((recipe, id) => latest.current(recipe, id), () => blockedRecipeReason(uiRunKind.current)), []);
   useConfigureSuggestions({ suggestions: [
-    { title: t("用現有食材料理"), message: `${t("請用我現有的食材設計料理。如果還不知道有哪些食材，請先問我。我的偏好：")} ${preferenceJson}` },
+    { title: t("用現有食材料理"), message: `${t("請幫我選一道料理。如果還不知道有哪些食材，請讓我選擇直接取得食譜去採買，或列出現有食材。我的偏好：")} ${preferenceJson}` },
     { title: t("30 分鐘晚餐"), message: `${t("請推薦 30 分鐘內可以完成的晚餐。我的偏好：")} ${preferenceJson}` },
     { title: t("暖心一鍋料理"), message: `${t("請設計一道暖心的一鍋料理。我的偏好：")} ${preferenceJson}` },
   ], available: "before-first-message" }, [preferenceJson, language]);
