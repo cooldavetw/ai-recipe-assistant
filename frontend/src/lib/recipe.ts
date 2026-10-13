@@ -10,11 +10,13 @@ export const recipeSchema = z.object({
 });
 export type Recipe = z.infer<typeof recipeSchema>;
 export type SavedRecipe = Recipe & { id: string };
-export function createRecipeHandler(show: (recipe: Recipe, id: string) => void) {
+export function createRecipeHandler(show: (recipe: Recipe, id: string) => void, blocked: () => string | undefined = () => undefined) {
   const results = new Map<string, string>();
   return (args: unknown, id: string): string => {
     const previous = results.get(id);
     if (previous !== undefined) return previous;
+    const reason = blocked();
+    if (reason) { results.set(id, reason); return reason; }
     const parsed = recipeSchema.safeParse(args);
     const result = parsed.success ? "Recipe displayed in the kitchen." : `Recipe not displayed: ${z.prettifyError(parsed.error)}`;
     if (parsed.success) show(parsed.data, id);

@@ -32,7 +32,7 @@ test("rapid ingredient and allergy edits coalesce; busy agents wait", async () =
   assert.equal(f.sent.length, 0);
   await f.queue.flush(false, f.send);
   assert.deepEqual(f.sent, [{ preferences: latest, kind: "change", recipe: undefined }]);
-  assert.match(changeMessage(f.sent[0]), /Do not generate or revise/);
+  assert.match(changeMessage(f.sent[0]), /請勿產生或修改食譜/);
 });
 test("changes during a run are retained, including reverting to old settings", async () => {
   const f = fixture();
@@ -65,7 +65,7 @@ test("explicit revisions bypass debounce, stay explicit across edits and preserv
   f.queue.offer(initial, "revise", recipe);
   await f.queue.flush(false, f.send);
   assert.equal(f.sent[0].kind, "revise");
-  assert.match(changeMessage(f.sent[0]), /Keep the previous recipe/);
+  assert.match(changeMessage(f.sent[0]), /原食譜保留/);
   assert.match(changeMessage(f.sent[0]), /Rice/);
   f.queue.offer(initial, "revise", recipe);
   f.queue.offer({ ...initial, servings: "4" }); f.time(1000);
@@ -73,4 +73,39 @@ test("explicit revisions bypass debounce, stay explicit across edits and preserv
   assert.equal(f.sent[1].kind, "revise");
   assert.equal(f.sent[1].preferences.servings, "4");
   assert.deepEqual(f.sent[1].recipe, recipe);
+});
+
+test("revision clarification includes the clicked recipe and checked items in both languages", () => {
+  const recipe = { title: "Rice", description: "Dinner", cuisine: "Simple", servings: 2, totalMinutes: 20, ingredients: [{ name: "rice", quantity: "1 cup", optional: false }, { name: "tomato", quantity: "1", optional: false }], steps: ["Cook."], tips: [] };
+  const queue = new KitchenQueue(initial);
+  queue.offer(initial, "revise", recipe, [1]);
+  return queue.flush(false, async update => {
+    assert.deepEqual(update.checkedIndices, [1]);
+    const en = changeMessage(update, "en"), zh = changeMessage(update, "zh-Hant");
+    assert.match(en, /do not generate a recipe in this turn/);
+    assert.match(en, /Crossed-off checklist ingredients: \["tomato"\]/);
+    assert.match(en, /prepared, unavailable, or unwanted/);
+    assert.match(zh, /本次回覆請勿產生食譜/);
+    assert.match(zh, /已勾選劃掉的清單食材：\["tomato"\]/);
+    assert.match(zh, /等我說明或確認後/);
+  });
+});
+
+test("coalescing settings while busy preserves the clarification target and checklist", async () => {
+  let now = 0;
+  const queue = new KitchenQueue(initial, () => now);
+  const recipe = { title: "Rice", description: "Dinner", cuisine: "Simple", servings: 2, totalMinutes: 20, ingredients: [{ name: "rice", quantity: "1 cup", optional: false }], steps: ["Cook."], tips: [] };
+  queue.offer(initial, "revise", recipe, [0]);
+  queue.offer({ ...initial, servings: "4" }); now = 1000;
+  let calls = 0;
+  await queue.flush(true, async () => { calls++; });
+  assert.equal(calls, 0);
+  await queue.flush(false, async update => {
+    calls++;
+    assert.equal(update.kind, "revise");
+    assert.deepEqual(update.recipe, recipe);
+    assert.deepEqual(update.checkedIndices, [0]);
+    assert.equal(update.preferences.servings, "4");
+  });
+  assert.equal(calls, 1);
 });

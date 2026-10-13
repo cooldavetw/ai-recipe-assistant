@@ -32,3 +32,20 @@ test("health status distinguishes missing credentials and a failed backend", asy
     assert.equal(await getBackendStatus("https://example.test/"), "unavailable");
   } finally { globalThis.fetch = original; }
 });
+
+test("UI clarification cannot add recipes; later chat requests can", async () => {
+  const { blockedRecipeReason } = await import("../src/lib/kitchen");
+  let kind: "change" | "revise" | undefined = "revise";
+  const displayed: string[] = [];
+  const handler = createRecipeHandler((_, id) => displayed.push(id), () => blockedRecipeReason(kind));
+  assert.match(handler(recipe, "clarify"), /clarification required/);
+  assert.deepEqual(displayed, []);
+  kind = "change";
+  assert.match(handler(recipe, "notify"), /only permits acknowledgement/);
+  assert.deepEqual(displayed, []);
+  kind = undefined;
+  // Replayed calls from the blocked turn must still remain blocked.
+  assert.match(handler(recipe, "clarify"), /clarification required/);
+  assert.match(handler(recipe, "confirmed"), /Recipe displayed/);
+  assert.deepEqual(displayed, ["confirmed"]);
+});
