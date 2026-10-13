@@ -69,3 +69,5 @@ npm --prefix frontend run build
 Tests simulate the model, verify AG-UI streaming, missing credentials, frontend hosting and URL prefixes, and recipe validation and duplicate handling. Live recipe generation requires a real API key.
 
 Recipes retain a snapshot of settings at generation start. If the top controls change, revision compares them with that snapshot and asks to confirm the specific new diet, servings, or allergy settings instead of asking a generic revision question.
+
+FastAPI explicitly forwards AG-UI browser context as per-run model instructions; the adapter does not consume context automatically. Preference notifications also name the serving count, diet and allergy settings in readable chat text. Backend tests verify the model receives the latest settings on successive requests rather than relying only on browser request checks.

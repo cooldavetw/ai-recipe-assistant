@@ -120,3 +120,44 @@ def test_agent_streams_recipe_tool_to_frontend(client, monkeypatch):
     args = "".join(e["delta"] for e in events if e["type"] == "TOOL_CALL_ARGS")
     assert json.loads(args) == recipe
     assert events[-1]["type"] == "RUN_FINISHED"
+
+
+def test_latest_browser_preferences_reach_model_on_each_run(client, monkeypatch):
+    from agent import INSTRUCTIONS
+
+    seen = []
+
+    async def stream_reply(messages, info):
+        seen.append(info.instructions)
+        assert "You are Pantry" in info.instructions
+        assert "Current browser context" in info.instructions
+        yield "Settings received."
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(main, "get_agent", lambda: Agent(FunctionModel(stream_function=stream_reply), instructions=INSTRUCTIONS))
+    for servings in ("3", "6"):
+        payload = {
+            "threadId": "settings", "runId": f"run-{servings}", "state": {},
+            "messages": [
+                {"id": "old", "role": "user", "content": "Please cook for 2 people."},
+                {"id": "current", "role": "user", "content": "I updated my kitchen settings."},
+            ],
+            "tools": [], "forwardedProps": {},
+            "context": [{"description": "Current kitchen UI state", "value": json.dumps({
+                "interactionLanguage": "en", "preferences": {"servings": servings, "diet": "Vegan", "allergies": "peanuts", "ingredients": []},
+                "selectedRecipe": {"title": "Tofu", "servings": 2},
+            })}],
+        }
+        response = client.post("/agent", json=payload)
+        assert response.status_code == 200
+        events = [json.loads(line[5:]) for line in response.text.splitlines() if line.startswith("data:")]
+        assert events[-1]["type"] == "RUN_FINISHED"
+        # Context value is JSON encoded within the surrounding context envelope.
+        envelope = json.loads(seen[-1].split("Do not print this JSON in chat.\n", 1)[1])
+        state = json.loads(envelope[0]["value"])
+        assert state["preferences"]["servings"] == servings
+        assert state["preferences"]["diet"] == "Vegan"
+        assert state["preferences"]["allergies"] == "peanuts"
+        assert state["interactionLanguage"] == "en"
+        assert state["selectedRecipe"]["title"] == "Tofu"
+    assert seen[0] != seen[1]

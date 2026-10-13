@@ -52,7 +52,10 @@ export function changeMessage(update: KitchenUpdate, language: Language = "zh-Ha
       ? `I’d like to revise${title ? ` “${title}”` : " this recipe"}. Please ask me what I want changed first.`
       : `我想調整${title ? `「${title}」` : "這份食譜"}，請先和我確認要修改什麼。`;
   }
-  return language === "en" ? "I updated my kitchen settings. Please review the changes." : "我更新了廚房設定，請確認這次的變更。";
+  const dietNames: Record<string, string> = { "No preference": "不限", Vegetarian: "蛋奶素", Vegan: "全素", "Gluten-free": "無麩質", "Dairy-free": "不含乳製品" };
+  return language === "en"
+    ? `I updated my kitchen settings: ${update.preferences.servings} servings, diet: ${update.preferences.diet}, foods to avoid: ${update.preferences.allergies || "none specified"}. Please acknowledge these settings and suggest any needed adjustments without rewriting the recipe.`
+    : `我已更新廚房設定：${update.preferences.servings} 人份，飲食偏好：${dietNames[update.preferences.diet] ?? update.preferences.diet}，避免食材：${update.preferences.allergies || "未指定"}。請確認最新設定並建議需要的調整，先不要重寫食譜。`;
 }
 export function kitchenActionContext(update: KitchenUpdate, language: Language) {
   return { action: update.kind, preferences: update.preferences, recipe: update.recipe ?? null,

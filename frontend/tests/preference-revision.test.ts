@@ -27,3 +27,13 @@ test("unchanged preferences still offer general revision goals; legacy recipes d
   const { preferencesAtCreation: _, ...legacy } = recipe;
   assert.deepEqual(preferenceChanges({ kind: "revise", recipe: legacy, preferences: { ...original, servings: "4" } }, "en"), ["4 servings"]);
 });
+
+test("preference notifications state the updated serving count explicitly without raw JSON", () => {
+  for (const servings of ["3", "6"]) {
+    const update: KitchenUpdate = { kind: "change", preferences: { ...original, servings, diet: "Vegan", allergies: "peanuts" } };
+    assert.ok(changeMessage(update, "en").includes(`${servings} servings`));
+    assert.ok(changeMessage(update, "zh-Hant").includes(`${servings} 人份`));
+    assert.ok(changeMessage(update, "zh-Hant").includes("全素"));
+    assert.doesNotMatch(changeMessage(update, "en"), /"servings"|"diet"/);
+  }
+});
