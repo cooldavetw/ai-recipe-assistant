@@ -1,3 +1,4 @@
+import type { Preferences } from "./kitchen";
 import { z } from "zod";
 const text = (max: number) => z.string().trim().min(1).max(max);
 export const recipeSchema = z.object({
@@ -9,7 +10,7 @@ export const recipeSchema = z.object({
   tips: z.array(text(600)).max(10),
 });
 export type Recipe = z.infer<typeof recipeSchema>;
-export type SavedRecipe = Recipe & { id: string };
+export type SavedRecipe = Recipe & { id: string; preferencesAtCreation?: Preferences };
 export function createRecipeHandler(show: (recipe: Recipe, id: string) => void, blocked: () => string | undefined = () => undefined) {
   const results = new Map<string, string>();
   return (args: unknown, id: string): string => {

@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { KitchenUpdate } from "./kitchen";
+import { preferenceChanges, type KitchenUpdate } from "./kitchen";
 import type { Language } from "./language";
 const text = (max: number) => z.string().trim().min(1).max(max);
 export const questionSchema = z.object({
-  topic: z.enum(["general", "ingredient_plan", "revision_plan", "ingredient_remove", "ingredient_increase"]).optional(),
+  topic: z.enum(["general", "ingredient_plan", "revision_plan", "ingredient_remove", "ingredient_increase", "preference_revision"]).optional(),
   question: text(600),
   options: z.array(z.object({ label: text(80), answer: text(400) })).min(2).max(4),
 }).refine(value => new Set(value.options.map(option => option.label.toLowerCase())).size === value.options.length, { message: "Choice labels must be distinct." });
@@ -40,6 +40,20 @@ export function revisionPlanQuestion(language: Language): Question {
   ] };
 }
 export function revisionActionQuestion(update: KitchenUpdate | undefined, language: Language): Question {
+  const changes = update ? preferenceChanges(update, language) : [];
+  if (update?.kind === "revise" && changes.length) {
+    const summary = changes.join(language === "en" ? ", " : "、");
+    const title = update.recipe?.title ?? "";
+    return { topic: "preference_revision", question: language === "en" ? `Apply ${summary} to “${title}”?` : `要將「${title}」調整為${summary}嗎？`, options: language === "en" ? [
+      { label: "Apply new settings", answer: `Yes, revise “${title}” for ${summary} using my latest dietary preferences, allergies and serving count. Keep the original recipe.` },
+      { label: "Other changes", answer: "I also want other changes. Please ask what else I want before revising." },
+      { label: "Keep the original", answer: "Cancel this revision and keep the original recipe unchanged." },
+    ] : [
+      { label: "套用新設定", answer: `確認將「${title}」調整為${summary}，並遵守最新飲食偏好、過敏限制與用餐人數。請保留原食譜。` },
+      { label: "還有其他調整", answer: "我還想做其他調整，請先問我還要修改什麼，再修改食譜。" },
+      { label: "保留原食譜", answer: "取消這次修改，請保留原食譜。" },
+    ] };
+  }
   if (!update || !["ingredient_remove", "ingredient_increase"].includes(update.kind)) return revisionPlanQuestion(language);
   const ingredient = update.recipe?.ingredients[update.ingredientIndex ?? -1];
   const name = ingredient?.name ?? "";
@@ -72,6 +86,7 @@ export function revisionActionQuestion(update: KitchenUpdate | undefined, langua
 }
 /** Recover common model shapes; button-triggered revisions always have a safe fallback. */
 export function parseQuestion(args: unknown, language: Language, fallback?: Question): Question | undefined {
+  if (fallback?.topic === "preference_revision") return fallback;
   if (fallback?.topic === "ingredient_remove" || fallback?.topic === "ingredient_increase") return fallback;
   if (!args || typeof args !== "object") return fallback;
   const input = args as Record<string, unknown>;

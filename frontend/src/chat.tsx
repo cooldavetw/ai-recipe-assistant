@@ -9,7 +9,7 @@ import { createRecipeHandler, recipeSchema, type Recipe, type SavedRecipe } from
 import { KitchenQueue, blockedRecipeReason, changeMessage, kitchenActionContext, preferenceKey, type Preferences, type KitchenUpdate, type UpdateKind, type IngredientAction } from "./lib/kitchen";
 import { ingredientsSchema, createIngredientsHandler } from "./lib/ingredients";
 import { RecipeCard } from "./recipe-card";
-type ChatProps = { onIngredients: (ingredients: string[]) => void; onRecipe: (recipe: Recipe, id: string) => void; preferences: Preferences; currentRecipe?: SavedRecipe; ingredientAction?: IngredientAction; revision: number };
+type ChatProps = { onIngredients: (ingredients: string[]) => void; onRecipe: (recipe: Recipe, id: string, usedPreferences?: Preferences) => void; preferences: Preferences; currentRecipe?: SavedRecipe; ingredientAction?: IngredientAction; revision: number };
 export function Chat(props: ChatProps) {
   const [agents] = useState(() => ({ default: new HttpAgent({ url: backendUrl("agent") }) }));
   return <CopilotKitProvider agents__unsafe_dev_only={agents} enableInspector={false} showIntelligenceIndicator={false}><RecipeCopilot {...props}/></CopilotKitProvider>;
@@ -19,6 +19,13 @@ function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, in
   const activeLanguage = useRef(language); activeLanguage.current = language;
   const { agent, isReady } = useAgent({ agentId: "default" });
   const { copilotkit } = useCopilotKit();
+  const latestPreferences = useRef(preferences); latestPreferences.current = preferences;
+  const runPreferences = useRef(preferences);
+  useEffect(() => {
+    if (!isReady) return;
+    const subscription = agent.subscribe({ onRunInitialized: () => { runPreferences.current = structuredClone(latestPreferences.current); } });
+    return () => subscription.unsubscribe();
+  }, [agent, isReady]);
   const [queue] = useState(() => new KitchenQueue(preferences));
   const [updateStatus, setUpdateStatus] = useState(queue.status);
   const uiRunKind = useRef<UpdateKind | undefined>(undefined);
@@ -118,7 +125,7 @@ function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, in
       return question ? <QuestionChoices question={question} toolCallId={toolCallId} complete={status === ToolCallStatus.Complete}/> : <p>{t("正在整理可選的回答…")}</p>;
     },
   }, [language, questionHandler]);
-  const handler = useMemo(() => createRecipeHandler((recipe, id) => { setRevisionTarget(undefined); setRevisionUpdate(undefined); setRevisionAnchor(undefined); latest.current(recipe, id); }, () => blockedRecipeReason(uiRunKind.current)), []);
+  const handler = useMemo(() => createRecipeHandler((recipe, id) => { setRevisionTarget(undefined); setRevisionUpdate(undefined); setRevisionAnchor(undefined); latest.current(recipe, id, runPreferences.current); }, () => blockedRecipeReason(uiRunKind.current)), []);
   const showRevisionChoices = needsRevisionChoices(agent.messages, revisionAnchor);
   useConfigureSuggestions({ suggestions: showRevisionChoices ? revisionActionQuestion(revisionUpdate, language).options.map(option => ({ title: option.label, message: option.answer })) : [
     { title: t("用現有食材料理"), message: `${t("請幫我選一道料理。如果還不知道有哪些食材，請讓我選擇直接取得食譜去採買，或列出現有食材。")}` },

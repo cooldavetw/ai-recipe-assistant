@@ -67,3 +67,5 @@ npm --prefix frontend run build
 ```
 
 Tests simulate the model, verify AG-UI streaming, missing credentials, frontend hosting and URL prefixes, and recipe validation and duplicate handling. Live recipe generation requires a real API key.
+
+Recipes retain a snapshot of settings at generation start. If the top controls change, revision compares them with that snapshot and asks to confirm the specific new diet, servings, or allergy settings instead of asking a generic revision question.

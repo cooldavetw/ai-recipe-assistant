@@ -30,8 +30,8 @@ export function KitchenApp({ setLanguage }: { setLanguage: (language: Language) 
   const [ingredientAction, setIngredientAction] = useState<IngredientAction>();
   const [check, setCheck] = useState(0);
   useEffect(() => { let active = true; setStatus("checking"); getBackendStatus().then(value => { if (active) setStatus(value); }); return () => { active = false; }; }, [check]);
-  function addRecipe(recipe: Recipe, id: string) {
-    setRecipes(previous => previous.some(item => item.id === id) ? previous : [...previous, { ...recipe, id }].slice(-50));
+  function addRecipe(recipe: Recipe, id: string, usedPreferences?: Preferences) {
+    setRecipes(previous => previous.some(item => item.id === id) ? previous : [...previous, { ...recipe, id, preferencesAtCreation: structuredClone(usedPreferences ?? { diet, servings, allergies: allergies.trim(), ingredients }) }].slice(-50));
     setSelected(id);
   }
   const current = recipes.find(recipe => recipe.id === selected) ?? recipes.at(-1);

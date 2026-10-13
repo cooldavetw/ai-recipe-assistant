@@ -2,14 +2,28 @@ import type { Language } from "./language";
 export type Preferences = { diet: string; servings: string; allergies: string; ingredients: string[] };
 import type { Recipe } from "./recipe";
 export type UpdateKind = "change" | "revise" | "ingredient_remove" | "ingredient_increase";
-export type KitchenUpdate = { preferences: Preferences; kind: UpdateKind; recipe?: Recipe; checkedIndices?: number[]; ingredientIndex?: number };
+export type KitchenUpdate = { preferences: Preferences; kind: UpdateKind; recipe?: Recipe & { preferencesAtCreation?: Preferences }; checkedIndices?: number[]; ingredientIndex?: number };
 export type IngredientAction = { id: number; kind: "ingredient_remove" | "ingredient_increase"; recipe: Recipe; ingredientIndex: number };
 export const preferenceKey = (value: Preferences) => JSON.stringify(value);
+export function preferenceChanges(update: KitchenUpdate, language: Language): string[] {
+  const previous = update.recipe?.preferencesAtCreation;
+  const current = update.preferences;
+  const changes: string[] = [];
+  if (update.recipe && Number(current.servings) !== update.recipe.servings) changes.push(language === "en" ? `${current.servings} servings` : `${current.servings} 人份`);
+  if (previous && current.diet !== previous.diet) {
+    const names: Record<string, string> = { "No preference": "不限", Vegetarian: "蛋奶素", Vegan: "全素", "Gluten-free": "無麩質", "Dairy-free": "不含乳製品" };
+    changes.push(language === "en" ? `diet: ${current.diet}` : `飲食偏好：${names[current.diet] ?? current.diet}`);
+  }
+  if (previous && current.allergies !== previous.allergies) changes.push(language === "en" ? `foods to avoid: ${current.allergies || "none specified"}` : `避免食材：${current.allergies || "未指定"}`);
+  return changes;
+}
 export function actionInstructions(update: KitchenUpdate, language: Language = "zh-Hant"): string {
   if (update.kind === "ingredient_remove" || update.kind === "ingredient_increase") {
     const ingredient = update.recipe?.ingredients[update.ingredientIndex ?? -1];
     return `The user clicked ${update.kind} for ${JSON.stringify(ingredient)} in recipe ${JSON.stringify(update.recipe)}. Current preferences: ${JSON.stringify(update.preferences)}. Reply in ${language === "en" ? "English" : "Traditional Chinese"}. Do not generate or alter a recipe in this turn. For removal, explain necessary substitutions or cooking adjustments and ask for confirmation with removal, substitution, and cancellation choices. For an increase, ask how much with 1.5×, 2×, and custom-amount choices. Do not infer numeric amounts from vague quantities such as to taste. Wait for an explicit subsequent confirmation or amount selection before generating a new recipe; keep the original recipe unchanged. Do not change the user's on-hand inventory merely because they want to customize this recipe.`;
   }
+  const changes = preferenceChanges(update, language);
+  if (update.kind === "revise" && changes.length) return `The recipe has known preference changes: ${changes.join("; ")}. Current settings: ${JSON.stringify(update.preferences)}. Target recipe: ${JSON.stringify(update.recipe)}. Reply in ${language === "en" ? "English" : "Traditional Chinese"}. Ask the user to confirm applying these specific changes. Do NOT ask what they want changed or show generic revision-goal choices. Offer apply new settings, other changes, and keep original. Do not generate until the user confirms. After confirmation, revise using the current settings and retain the original.`;
   const checkedNames = update.recipe?.ingredients.filter((_, index) => update.checkedIndices?.includes(index)).map(item => item.name) ?? [];
   if (language === "en") {
     return update.kind === "revise"
@@ -29,6 +43,9 @@ export function changeMessage(update: KitchenUpdate, language: Language = "zh-Ha
       ? update.kind === "ingredient_remove" ? `I’d like to remove ${name} from “${title}”. Please suggest the adjustments and ask me to confirm first.` : `I’d like more ${name} in “${title}”. Please ask me how much first.`
       : update.kind === "ingredient_remove" ? `我想從「${title}」移除${name}，請先說明需要的調整並和我確認。` : `我想增加「${title}」的${name}用量，請先問我希望增加多少。`;
   }
+  if (update.kind === "revise" && preferenceChanges(update, language).length) return language === "en"
+    ? `I changed my preferences to ${preferenceChanges(update, language).join(", ")}. Please confirm applying these changes to “${update.recipe?.title ?? "this recipe"}”.`
+    : `我已將偏好改為${preferenceChanges(update, language).join("、")}，請確認將這些變更套用到「${update.recipe?.title ?? "這份食譜"}」。`;
   if (update.kind === "revise") {
     const title = update.recipe?.title;
     return language === "en"
@@ -39,7 +56,7 @@ export function changeMessage(update: KitchenUpdate, language: Language = "zh-Ha
 }
 export function kitchenActionContext(update: KitchenUpdate, language: Language) {
   return { action: update.kind, preferences: update.preferences, recipe: update.recipe ?? null,
-    checkedIngredientIndices: update.checkedIndices ?? [], ingredientIndex: update.ingredientIndex ?? null, targetIngredient: update.recipe?.ingredients[update.ingredientIndex ?? -1] ?? null, instructions: actionInstructions(update, language) };
+    checkedIngredientIndices: update.checkedIndices ?? [], ingredientIndex: update.ingredientIndex ?? null, preferenceChanges: preferenceChanges(update, language), targetIngredient: update.recipe?.ingredients[update.ingredientIndex ?? -1] ?? null, instructions: actionInstructions(update, language) };
 }
 /** UI-triggered runs may discuss changes, but must never create recipes. */
 export function blockedRecipeReason(kind?: UpdateKind): string | undefined {
@@ -56,7 +73,7 @@ export class KitchenQueue {
   private failed = false;
   private inFlight?: KitchenUpdate;
   constructor(initial: Preferences, private now: () => number = Date.now) { this.acknowledged = preferenceKey(initial); }
-  offer(preferences: Preferences, kind: UpdateKind = "change", recipe?: Recipe, checkedIndices?: number[], ingredientIndex?: number) {
+  offer(preferences: Preferences, kind: UpdateKind = "change", recipe?: KitchenUpdate["recipe"], checkedIndices?: number[], ingredientIndex?: number) {
     if (kind === "change" && preferenceKey(preferences) === (this.inFlightKey ?? this.acknowledged)) {
       if ((!this.pending || this.pending.kind === "change")) this.pending = undefined;
       return;

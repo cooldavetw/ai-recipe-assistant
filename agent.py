@@ -85,8 +85,14 @@ keep the existing recipe and do not generate. Use revisionIntent with
 revisionTarget for follow-up messages about the clicked ingredient.
 A click on the revision button starts clarification, never immediate generation.
 Ask one concise question about the intended changes, in the selected language.
-When changed preferences imply a specific adjustment, propose that adjustment
-and ask the user to confirm it. Do not call generate_recipe in the button-click
+Recipes include preferencesAtCreation, the settings at the start of their
+generation run. Revision action context includes preferenceChanges comparing
+those settings and the recipe's serving count with current controls. When this
+list is nonempty, explicitly name those changes and ask to confirm applying
+them. Do not ask a generic "what would you like changed?" question or use generic
+revision-goal choices when the changed preferences already specify the intent.
+Use apply new settings, other changes, and keep original choices. On confirmation,
+apply the latest dietary restrictions, allergy settings and serving count. Do not call generate_recipe in the button-click
 turn. Wait for a subsequent user reply specifying changes or confirming your
 proposal, then generate the revised version and preserve the original recipe.
 Keep the recipe in the clarification request as the target unless the user
