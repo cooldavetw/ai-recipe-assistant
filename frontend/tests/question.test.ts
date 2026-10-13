@@ -47,3 +47,29 @@ test("ingredient planning offers shopping or a user-provided inventory in either
   assert.match(zh.options[1].answer, /先等我提供清單/);
   assert.deepEqual(resolveQuestion(question, "en"), question);
 });
+
+test("revision choices recover incomplete model calls and support both languages", async () => {
+  const { parseQuestion, revisionPlanQuestion } = await import("../src/lib/question");
+  for (const language of ["en", "zh-Hant"] as const) {
+    const fallback = revisionPlanQuestion(language);
+    assert.equal(questionSchema.safeParse(fallback).success, true);
+    assert.equal(fallback.options.length, 4);
+    assert.deepEqual(parseQuestion({ question: "Revise?" }, language, fallback), fallback);
+    assert.deepEqual(parseQuestion({}, language, fallback), fallback);
+    assert.deepEqual(parseQuestion({ topic: "revision_plan" }, language), fallback);
+    assert.match(createQuestionHandler()(fallback, language), /Question displayed/);
+  }
+  const recovered = parseQuestion({ prompt: "What changes?", choices: ["Servings", "Flavor"] }, "en");
+  assert.deepEqual(recovered?.options, [{ label: "Servings", answer: "Servings" }, { label: "Flavor", answer: "Flavor" }]);
+  assert.equal(parseQuestion({ question: "Missing choices" }, "en"), undefined);
+});
+
+test("revision options show after plain-text replies but expire after an answer or question tool", async () => {
+  const { needsRevisionChoices } = await import("../src/lib/question");
+  const messages = [{ id: "revision", role: "user" }, { id: "reply", role: "assistant" }];
+  assert.equal(needsRevisionChoices(messages, "revision"), true);
+  assert.equal(needsRevisionChoices(messages), false);
+  assert.equal(needsRevisionChoices(messages, "missing"), false);
+  assert.equal(needsRevisionChoices([...messages, { id: "answer", role: "user" }], "revision"), false);
+  assert.equal(needsRevisionChoices([...messages, { id: "question", role: "assistant", toolCalls: [{ function: { name: "ask_question" } }] }], "revision"), false);
+});

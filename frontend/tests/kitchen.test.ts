@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { KitchenQueue, changeMessage, type Preferences, type KitchenUpdate } from "../src/lib/kitchen";
+import { KitchenQueue, actionInstructions, type Preferences, type KitchenUpdate } from "../src/lib/kitchen";
 const initial: Preferences = { diet: "No preference", servings: "2", allergies: "", ingredients: [] };
 function fixture() {
   let now = 0;
@@ -32,7 +32,7 @@ test("rapid ingredient and allergy edits coalesce; busy agents wait", async () =
   assert.equal(f.sent.length, 0);
   await f.queue.flush(false, f.send);
   assert.deepEqual(f.sent, [{ preferences: latest, kind: "change", recipe: undefined }]);
-  assert.match(changeMessage(f.sent[0]), /請勿產生或修改食譜/);
+  assert.match(actionInstructions(f.sent[0]), /請勿產生或修改食譜/);
 });
 test("changes during a run are retained, including reverting to old settings", async () => {
   const f = fixture();
@@ -65,8 +65,8 @@ test("explicit revisions bypass debounce, stay explicit across edits and preserv
   f.queue.offer(initial, "revise", recipe);
   await f.queue.flush(false, f.send);
   assert.equal(f.sent[0].kind, "revise");
-  assert.match(changeMessage(f.sent[0]), /原食譜保留/);
-  assert.match(changeMessage(f.sent[0]), /Rice/);
+  assert.match(actionInstructions(f.sent[0]), /原食譜保留/);
+  assert.match(actionInstructions(f.sent[0]), /Rice/);
   f.queue.offer(initial, "revise", recipe);
   f.queue.offer({ ...initial, servings: "4" }); f.time(1000);
   await f.queue.flush(false, f.send);
@@ -81,7 +81,7 @@ test("revision clarification includes the clicked recipe and checked items in bo
   queue.offer(initial, "revise", recipe, [1]);
   return queue.flush(false, async update => {
     assert.deepEqual(update.checkedIndices, [1]);
-    const en = changeMessage(update, "en"), zh = changeMessage(update, "zh-Hant");
+    const en = actionInstructions(update, "en"), zh = actionInstructions(update, "zh-Hant");
     assert.match(en, /do not generate a recipe in this turn/);
     assert.match(en, /Crossed-off checklist ingredients: \["tomato"\]/);
     assert.match(en, /prepared, unavailable, or unwanted/);
@@ -108,4 +108,22 @@ test("coalescing settings while busy preserves the clarification target and chec
     assert.equal(update.preferences.servings, "4");
   });
   assert.equal(calls, 1);
+});
+
+test("visible UI messages omit raw payloads while agent context retains the clicked recipe", async () => {
+  const { changeMessage, kitchenActionContext } = await import("../src/lib/kitchen");
+  const recipe = { title: "番茄飯", description: "Internal description", cuisine: "Simple", servings: 2, totalMinutes: 20, ingredients: [{ name: "tomato", quantity: "1", optional: false }], steps: ["Cook."], tips: [] };
+  const update = { preferences: initial, kind: "revise" as const, recipe, checkedIndices: [0] };
+  for (const language of ["en", "zh-Hant"] as const) {
+    const message = changeMessage(update, language);
+    assert.ok(message.includes("番茄飯"));
+    assert.ok(message.length < 150);
+    assert.doesNotMatch(message, /"title"|"ingredients"|Internal description|JSON/);
+    const context = kitchenActionContext(update, language);
+    assert.deepEqual(context.recipe, recipe);
+    assert.deepEqual(context.checkedIngredientIndices, [0]);
+    assert.deepEqual(context.preferences, initial);
+    assert.ok(context.instructions.includes(language === "en" ? "do not generate" : "請勿產生"));
+    assert.doesNotMatch(changeMessage({ preferences: initial, kind: "change" }, language), /"diet"|"servings"|\{/);
+  }
 });

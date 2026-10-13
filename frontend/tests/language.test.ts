@@ -6,7 +6,7 @@ import { LanguageContext } from "../src/locale";
 import { KitchenApp } from "../src/recipe-app";
 import { RecipeCard } from "../src/recipe-card";
 import { readLanguage, saveLanguage, LANGUAGE_STORAGE_KEY } from "../src/lib/language";
-import { KitchenQueue, changeMessage, type Preferences } from "../src/lib/kitchen";
+import { KitchenQueue, actionInstructions, type Preferences } from "../src/lib/kitchen";
 test("language defaults safely and remembers valid choices even with blocked storage", () => {
   assert.equal(readLanguage(), "zh-Hant");
   assert.equal(readLanguage({ getItem: () => "fr" }), "zh-Hant");
@@ -44,9 +44,9 @@ test("language affects future acknowledgements and revisions without enqueuing a
   const preferences: Preferences = { diet: "Vegetarian", servings: "2", allergies: "", ingredients: [] };
   const queue = new KitchenQueue(preferences);
   const update = { preferences, kind: "change" as const };
-  assert.match(changeMessage(update, "en"), /acknowledge the changes in English/);
-  assert.match(changeMessage(update, "zh-Hant"), /繁體中文/);
-  assert.match(changeMessage({ ...update, kind: "revise" }, "en"), /clarification conversation in English/);
+  assert.match(actionInstructions(update, "en"), /acknowledge the changes in English/);
+  assert.match(actionInstructions(update, "zh-Hant"), /繁體中文/);
+  assert.match(actionInstructions({ ...update, kind: "revise" }, "en"), /clarification conversation in English/);
   queue.offer(preferences);
   let runs = 0; await queue.flush(false, async () => { runs++; });
   assert.equal(runs, 0);

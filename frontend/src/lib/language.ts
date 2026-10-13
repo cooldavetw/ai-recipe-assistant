@@ -8,6 +8,7 @@ export function saveLanguage(language: Language, storage?: Pick<Storage, "setIte
   try { storage?.setItem(LANGUAGE_STORAGE_KEY, language); } catch { /* In-memory choice still works. */ }
 }
 const english: Record<string, string> = {
+  "增加用量": "Increase amount",
   "選擇你的回答": "Choose your answer",
   "也可以在下方輸入自己的回答。": "You can also type your own answer below.",
   "回答傳送失敗。": "Couldn’t send your answer. ",
@@ -106,9 +107,9 @@ const english: Record<string, string> = {
   "傳送訊息": "Send message",
   "傳送訊息給食譜助理": "Message your recipe assistant",
   "料理助理暫時無法回覆，請稍後再試。若問題持續，請確認後端連線與 API 設定。": "The assistant couldn’t reply. Try again later; if it persists, check the backend connection and API settings.",
-  "請幫我選一道料理。如果還不知道有哪些食材，請讓我選擇直接取得食譜去採買，或列出現有食材。我的偏好：": "Help me choose a recipe. If you don’t know my ingredients yet, offer me a choice between a recipe I can shop for and listing what I have. My preferences:",
-  "請推薦 30 分鐘內可以完成的晚餐。我的偏好：": "Suggest a dinner ready in 30 minutes. My preferences:",
-  "請設計一道暖心的一鍋料理。我的偏好：": "Create a comforting one-pot recipe. My preferences:",
+  "請幫我選一道料理。如果還不知道有哪些食材，請讓我選擇直接取得食譜去採買，或列出現有食材。": "Help me choose a recipe. If you don’t know my ingredients yet, offer me a choice between a recipe I can shop for and listing what I have.",
+  "請推薦 30 分鐘內可以完成的晚餐。": "Suggest a dinner ready in 30 minutes.",
+  "請設計一道暖心的一鍋料理。": "Create a comforting one-pot recipe.",
   "語言": "Language",
   "移除": "Remove",
   "分鐘": "min",

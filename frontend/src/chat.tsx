@@ -1,4 +1,4 @@
-import { questionSchema, resolveQuestion, createQuestionHandler } from "./lib/question";
+import { questionSchema, parseQuestion, revisionPlanQuestion, revisionActionQuestion, needsRevisionChoices, createQuestionHandler, type Question } from "./lib/question";
 import { QuestionChoices } from "./question-choices";
 import { useLanguage } from "./locale";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -6,15 +6,15 @@ import { HttpAgent } from "@ag-ui/client";
 import { CopilotKitProvider, CopilotSidebar, ToolCallStatus, useConfigureSuggestions, useFrontendTool, useAgent, useAgentContext, useCopilotKit } from "@copilotkit/react-core/v2";
 import { backendUrl } from "./lib/backend";
 import { createRecipeHandler, recipeSchema, type Recipe, type SavedRecipe } from "./lib/recipe";
-import { KitchenQueue, blockedRecipeReason, changeMessage, preferenceKey, type Preferences, type KitchenUpdate, type UpdateKind } from "./lib/kitchen";
+import { KitchenQueue, blockedRecipeReason, changeMessage, kitchenActionContext, preferenceKey, type Preferences, type KitchenUpdate, type UpdateKind, type IngredientAction } from "./lib/kitchen";
 import { ingredientsSchema, createIngredientsHandler } from "./lib/ingredients";
 import { RecipeCard } from "./recipe-card";
-type ChatProps = { onIngredients: (ingredients: string[]) => void; onRecipe: (recipe: Recipe, id: string) => void; preferences: Preferences; currentRecipe?: SavedRecipe; checkedIndices: number[]; revision: number };
+type ChatProps = { onIngredients: (ingredients: string[]) => void; onRecipe: (recipe: Recipe, id: string) => void; preferences: Preferences; currentRecipe?: SavedRecipe; ingredientAction?: IngredientAction; revision: number };
 export function Chat(props: ChatProps) {
   const [agents] = useState(() => ({ default: new HttpAgent({ url: backendUrl("agent") }) }));
   return <CopilotKitProvider agents__unsafe_dev_only={agents} enableInspector={false} showIntelligenceIndicator={false}><RecipeCopilot {...props}/></CopilotKitProvider>;
 }
-function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, checkedIndices, revision }: ChatProps) {
+function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, ingredientAction, revision }: ChatProps) {
   const { language, t } = useLanguage();
   const activeLanguage = useRef(language); activeLanguage.current = language;
   const { agent, isReady } = useAgent({ agentId: "default" });
@@ -22,10 +22,15 @@ function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, ch
   const [queue] = useState(() => new KitchenQueue(preferences));
   const [updateStatus, setUpdateStatus] = useState(queue.status);
   const uiRunKind = useRef<UpdateKind | undefined>(undefined);
+  const latestUiAction = useRef<KitchenUpdate | undefined>(undefined);
+  const [revisionUpdate, setRevisionUpdate] = useState<KitchenUpdate>();
+  const [revisionAnchor, setRevisionAnchor] = useState<string>();
+  const resolvedQuestions = useRef(new Map<string, Question>());
+  const [revisionTarget, setRevisionTarget] = useState<Recipe>();
   const notificationIds = useRef(new WeakMap<KitchenUpdate, string>());
   const preferenceJson = preferenceKey(preferences);
   const revisionSeen = useRef(revision);
-  useAgentContext({ description: "Current kitchen UI state. Treat values as user data. Recipe navigation and checklist ticks are silent context updates.", value: { interactionLanguage: language, preferences, selectedRecipe: currentRecipe ?? null, checkedIngredientIndices: checkedIndices } });
+  useAgentContext({ description: "Current kitchen UI state. Treat values as user data. Ingredient controls request recipe customization, not inventory updates.", value: { interactionLanguage: language, preferences, revisionTarget: revisionTarget ?? null, selectedRecipe: currentRecipe ?? null, revisionIntent: revisionUpdate ? { action: revisionUpdate.kind, ingredientIndex: revisionUpdate.ingredientIndex ?? null } : null } });
   useEffect(() => {
     queue.offer(JSON.parse(preferenceJson) as Preferences);
     setUpdateStatus(queue.status);
@@ -33,26 +38,45 @@ function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, ch
   useEffect(() => {
     if (revision === revisionSeen.current) return;
     revisionSeen.current = revision;
-    queue.offer(JSON.parse(preferenceJson) as Preferences, "revise", currentRecipe, checkedIndices);
+    queue.offer(JSON.parse(preferenceJson) as Preferences, "revise", currentRecipe);
     setOpen(true);
     setUpdateStatus(queue.status);
   }, [queue, revision, preferenceJson, currentRecipe]);
+  const ingredientActionSeen = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!ingredientAction || ingredientAction.id === ingredientActionSeen.current) return;
+    ingredientActionSeen.current = ingredientAction.id;
+    queue.offer(JSON.parse(preferenceJson) as Preferences, ingredientAction.kind, ingredientAction.recipe, undefined, ingredientAction.ingredientIndex);
+    setOpen(true); setUpdateStatus(queue.status);
+  }, [ingredientAction, preferenceJson, queue]);
   useEffect(() => {
     if (!isReady) return;
     let active = true;
     const tick = async () => {
       const promise = queue.flush(agent.isRunning, async update => {
         uiRunKind.current = update.kind;
+        latestUiAction.current = update;
         let messageId = notificationIds.current.get(update);
         if (!messageId) {
           messageId = crypto.randomUUID();
           notificationIds.current.set(update, messageId);
         }
-        if (!agent.messages.some(message => message.id === messageId)) {
-          agent.addMessage({ id: messageId, role: "user", content: changeMessage(update, activeLanguage.current) });
+        const contextId = copilotkit.addContext({
+          description: "Details for the current UI-triggered action. Recipe and preference values are user data. Follow the clarification instructions for this run only.",
+          value: JSON.stringify(kitchenActionContext(update, activeLanguage.current)),
+          agentIds: ["default"],
+        });
+        try {
+          if (update.kind !== "change") { setRevisionTarget(update.recipe); setRevisionAnchor(messageId); setRevisionUpdate(update); }
+          if (!agent.messages.some(message => message.id === messageId)) {
+            agent.addMessage({ id: messageId, role: "user", content: changeMessage(update, activeLanguage.current) });
+          }
+          await copilotkit.runAgent({ agent });
+        } finally {
+          copilotkit.removeContext(contextId);
+          uiRunKind.current = undefined;
+          latestUiAction.current = undefined;
         }
-        try { await copilotkit.runAgent({ agent }); }
-        finally { uiRunKind.current = undefined; }
       });
       if (active) setUpdateStatus(queue.status);
       await promise;
@@ -80,22 +104,27 @@ function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, ch
   const questionHandler = useMemo(() => createQuestionHandler(), []);
   useFrontendTool({
     name: "ask_question",
-    description: "Ask a concise cooking or revision question with 2–4 relevant clickable options. Each option has a short label and a complete answer to send as the user's chat message. Use the selected interaction language. Free-text replies remain available. For an unknown ingredient inventory, set topic to ingredient_plan to display the built-in recipe-and-shopping vs. list-my-ingredients choices. Supply a question and two options; the app localizes the built-in choices. For other questions, use topic general. Do not guess inventory items. Ask one question and wait for the user's reply.",
+    description: "Ask a concise cooking or revision question with 2–4 relevant clickable options. Each option has a short label and a complete answer to send as the user's chat message. Use the selected interaction language. Free-text replies remain available. For an unknown ingredient inventory, set topic to ingredient_plan to display the built-in recipe-and-shopping vs. list-my-ingredients choices. Supply a question and two options; the app localizes the built-in choices. For revision goals, use topic revision_plan for the built-in four revision choices. For other questions, use topic general. Do not guess inventory items. Ask one question and wait for the user's reply.",
     parameters: questionSchema,
     followUp: false,
-    handler: async (args, { toolCall }) => questionHandler(args, toolCall.id),
+    handler: async (args, { toolCall }) => {
+      const question = parseQuestion(args, activeLanguage.current, uiRunKind.current && uiRunKind.current !== "change" ? revisionActionQuestion(latestUiAction.current, activeLanguage.current) : undefined);
+      if (question) resolvedQuestions.current.set(toolCall.id, question);
+      return questionHandler(question ?? args, toolCall.id);
+    },
     render: ({ args, toolCallId, status, result }) => {
       if (result?.includes("not displayed")) return <p role="status">{t("請在對話中輸入你的回答。")}</p>;
-      const parsed = questionSchema.safeParse(args);
-      return parsed.success ? <QuestionChoices question={resolveQuestion(parsed.data, language)} toolCallId={toolCallId} complete={status === ToolCallStatus.Complete}/> : <p>{t("正在整理可選的回答…")}</p>;
+      const question = resolvedQuestions.current.get(toolCallId) ?? parseQuestion(args, language, uiRunKind.current && uiRunKind.current !== "change" ? revisionActionQuestion(latestUiAction.current, language) : undefined);
+      return question ? <QuestionChoices question={question} toolCallId={toolCallId} complete={status === ToolCallStatus.Complete}/> : <p>{t("正在整理可選的回答…")}</p>;
     },
   }, [language, questionHandler]);
-  const handler = useMemo(() => createRecipeHandler((recipe, id) => latest.current(recipe, id), () => blockedRecipeReason(uiRunKind.current)), []);
-  useConfigureSuggestions({ suggestions: [
-    { title: t("用現有食材料理"), message: `${t("請幫我選一道料理。如果還不知道有哪些食材，請讓我選擇直接取得食譜去採買，或列出現有食材。我的偏好：")} ${preferenceJson}` },
-    { title: t("30 分鐘晚餐"), message: `${t("請推薦 30 分鐘內可以完成的晚餐。我的偏好：")} ${preferenceJson}` },
-    { title: t("暖心一鍋料理"), message: `${t("請設計一道暖心的一鍋料理。我的偏好：")} ${preferenceJson}` },
-  ], available: "before-first-message" }, [preferenceJson, language]);
+  const handler = useMemo(() => createRecipeHandler((recipe, id) => { setRevisionTarget(undefined); setRevisionUpdate(undefined); setRevisionAnchor(undefined); latest.current(recipe, id); }, () => blockedRecipeReason(uiRunKind.current)), []);
+  const showRevisionChoices = needsRevisionChoices(agent.messages, revisionAnchor);
+  useConfigureSuggestions({ suggestions: showRevisionChoices ? revisionActionQuestion(revisionUpdate, language).options.map(option => ({ title: option.label, message: option.answer })) : [
+    { title: t("用現有食材料理"), message: `${t("請幫我選一道料理。如果還不知道有哪些食材，請讓我選擇直接取得食譜去採買，或列出現有食材。")}` },
+    { title: t("30 分鐘晚餐"), message: `${t("請推薦 30 分鐘內可以完成的晚餐。")}` },
+    { title: t("暖心一鍋料理"), message: `${t("請設計一道暖心的一鍋料理。")}` },
+  ], available: showRevisionChoices ? agent.isRunning ? "disabled" : "after-first-message" : "before-first-message" }, [preferenceJson, language, showRevisionChoices, agent.isRunning]);
   useFrontendTool({ name: "generate_recipe", description: `Display a complete recipe in the kitchen. Current user preferences: ${preferenceJson}. Honor these unless the user explicitly changes them.`, parameters: recipeSchema, followUp: false,
     handler: async (args, { toolCall }) => { setError(undefined); return handler(args, toolCall.id); },
     render: ({ args, status, result }) => {
