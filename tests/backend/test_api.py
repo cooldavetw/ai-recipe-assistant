@@ -175,3 +175,29 @@ def test_only_preference_notifications_forbid_recipe_generation():
     assert "Do not automatically regenerate" in instructions(kitchen, json.dumps({"action": "change"}))
     assert "Do not automatically regenerate" not in instructions(kitchen, "not json")
     assert "Do not automatically regenerate" in instructions(kitchen, json.dumps(json.dumps({"action": "change"})))
+
+
+def test_transcribe_returns_text_and_validates_recordings(client, monkeypatch):
+    calls = []
+
+    async def fake_transcribe(audio, content_type, language):
+        calls.append((audio, content_type, language))
+        return "番茄炒蛋"
+
+    monkeypatch.setattr(main, "transcribe_audio", fake_transcribe)
+    url = "/transcribe?language=zh-Hant"
+    webm = {"Content-Type": "audio/webm;codecs=opus"}
+    assert client.post(url, content=b"x", headers=webm).status_code == 503  # no credentials
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    response = client.post(url, content=b"audio", headers=webm)
+    assert response.status_code == 200
+    assert response.json() == {"text": "番茄炒蛋"}
+    assert calls == [(b"audio", "audio/webm", "zh-Hant")]
+
+    assert client.post(url, content=b"", headers=webm).status_code == 400
+    assert client.post(url, content=b"x", headers={"Content-Type": "text/plain"}).status_code == 415
+    assert client.post("/transcribe?language=fr", content=b"x", headers=webm).status_code == 422
+    monkeypatch.setattr(main, "MAX_AUDIO_BYTES", 3)
+    assert client.post(url, content=b"toolong", headers=webm).status_code == 413
+    assert len(calls) == 1

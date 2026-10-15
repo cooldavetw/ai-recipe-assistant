@@ -6,6 +6,10 @@ A recipe agent built with the same framework as `../haiku-generator`: Pydantic A
 
 Chat about ingredients, cravings, substitutions or meal planning. When a question has clear choices, the `ask_question` tool displays 2–4 clickable answers in the selected language. Clicking an answer sends it into the same conversation; free-text replies remain available. Choices expire after a typed or clicked answer, or a newer question. When ingredients are unknown, the assistant offers two process choices: “Just give me a recipe—I’ll do the shopping” or “Use ingredients I have—I’ll list them”, localized for the selected language. The shopping choice requests a complete recipe without an inventory question; the other choice waits for the user’s ingredient list. Free-text replies remain available, and suggested purchases are never recorded as on-hand ingredients. Generated recipes appear in your recipe book with quantities, cooking steps, tips, ingredient customization buttons and printing. Tell the assistant what ingredients you have in chat. Its `update_kitchen_ingredients` tool maintains a shared “On hand” summary; it only records ingredients explicitly available, not suggested purchases. You can remove items from the summary or describe corrections in chat. Chat-originated ingredient updates do not trigger a redundant notification run. Change dietary preferences, serving count, or foods to avoid in the UI. Changes are batched after a 700 ms pause and sent into the same chat so the assistant acknowledges them, suggests adjustments, and flags allergy conflicts. Changes made during a reply wait for the current run to finish. Failed notifications have a Retry button. No model request occurs on initial load or recipe navigation. Each ingredient has “Remove” and “Increase amount” buttons. These open a focused conversation: removal asks for confirmation or a substitute; increasing offers 1.5×, 2×, a custom amount, or cancellation. The recipe is unchanged until the user confirms or selects an amount. Confirmed edits update the recipe in place; “Undo last change” restores the previous version. Ask in chat for a separate or new recipe to keep the original alongside the revision. The agent receives a compact index of the recipe book (number, id, title); asking about a recipe that is not displayed makes it call `select_recipe`, which switches the display and returns that recipe’s full content. “Delete recipe” removes the displayed recipe after confirmation; the agent cannot delete recipes. Recipe customization does not alter the on-hand ingredient inventory. The “Ask assistant to revise this recipe” button opens the chat and starts clarification. Four built-in revision choices appear even when the model asks in plain text, and incomplete question-tool data falls back to those choices: the assistant asks what you want changed or asks you to confirm a suggested adjustment. The visible chat message is a short request; full recipe data and action instructions travel in agent context. It receives the clicked recipe and any targeted ingredient action. Recipe generation is blocked during button-triggered clarification and automatic change notifications. After you explain or confirm the changes in chat, it updates that recipe in place (or saves a separate copy if you ask). Tell the assistant any critical allergies explicitly in chat as well. The latest 50 recipes are kept in memory for the current visit; refreshing clears recipes and chat.
 
+## Voice input
+
+The microphone button beside the chat's send button is push-to-talk: tap to start, tap again to send (recordings stop after 60 seconds). The browser records with `MediaRecorder` and posts the audio to `POST /transcribe?language=zh-Hant|en`; FastAPI transcribes it with OpenAI, keeping the key server-side, and the text is sent as a normal chat message, so tools such as `generate_recipe` work as for typed messages. Browsers allow the microphone only on secure pages (HTTPS or `localhost`), and the button is hidden otherwise; a self-signed certificate may need to be trusted first. Each voice message makes one transcription request, billed to the OpenAI account.
+
 ## Setup
 
 Requires Python 3.10+ and Node.js 22+.
@@ -18,7 +22,7 @@ cp .env.example .env.local
 npm --prefix frontend ci
 ```
 
-Set `OPENAI_API_KEY` in `.env.local`. The key remains on the backend. Optionally set `RECIPE_MODEL` (default `openai:gpt-4o`). Exported environment variables take precedence over `.env.local`.
+Set `OPENAI_API_KEY` in `.env.local`. The key remains on the backend. Optionally set `RECIPE_MODEL` (default `openai:gpt-4o`). Optionally set `TRANSCRIBE_MODEL` (default `gpt-4o-transcribe`) for voice input. Exported environment variables take precedence over `.env.local`.
 
 ```sh
 npm --prefix frontend run build
@@ -46,6 +50,7 @@ Open http://127.0.0.1:5173; Vite proxies `/agent` and `/health` to FastAPI. Set 
 - `frontend/src/lib/ingredients.ts`: validated chat-to-pantry state updates.
 - `frontend/src/lib/recipe.ts`: validated recipe schema and duplicate-call handling.
 - `frontend/src/recipe-card.tsx`: recipe display, checklist and printing.
+- `frontend/src/voice-button.tsx`, `frontend/src/lib/voice.ts`: push-to-talk recording and transcription.
 - `page.tsx`: compatibility export of the frontend page.
 - `style.css`: responsive kitchen theme, shared by the frontend.
 

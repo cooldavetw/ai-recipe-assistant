@@ -10,3 +10,13 @@ html[lang="zh-Hant"] .intro h1{letter-spacing:0;line-height:1.3}html[lang="zh-Ha
 .recipe-copilot h1{font-family:'DM Sans','Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif;font-size:16px;font-weight:500;line-height:1.8;letter-spacing:0;color:#43573f;margin:0;max-width:320px;overflow-wrap:anywhere}
 .question-choices{border:1px solid #dce0d0;border-radius:10px;background:#fffef7;padding:16px;margin:8px 0}.question-choices>p{font-size:14px;line-height:1.7;margin:0 0 12px}.question-choices>div{display:flex;flex-wrap:wrap;gap:8px}.question-choices button{border:1px solid #c8cdbd;background:#eaeedf;color:#315b3f;border-radius:16px;padding:8px 12px;font-size:12px;text-align:left;white-space:normal}.question-choices button:hover:not(:disabled){background:#dce7d0}.question-choices button:disabled{opacity:.55;cursor:default}.question-choices small{display:block;font-size:11px;color:#7a8072;margin-top:12px}.question-choices [role=alert]{font-size:12px;margin-top:10px}
 .ingredient-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.ingredient-row>span{min-width:0;overflow-wrap:anywhere}.ingredient-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;flex-shrink:0;max-width:145px}.ingredient-actions button{border:1px solid #c8cdbd;background:#f2f4e9;color:#43573f;border-radius:6px;padding:6px 8px;font-size:10px;line-height:1.5}.ingredient-actions button:hover:not(:disabled){background:#e2ebd7}.ingredient-actions button:disabled{opacity:.5;cursor:default}@media print{.ingredient-actions{display:none!important}}
+
+/* Push-to-talk: sits beside the send button inside the CopilotKit input. */
+.voice-button{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;margin-right:6px;border-radius:50%;border:1px solid #c8cdbd;background:#fffef7;color:#315b3f;cursor:pointer}
+.voice-button:disabled{opacity:.45;cursor:not-allowed}
+.voice-button[data-state=recording]{background:#b5482f;border-color:#b5482f;color:#fff;animation:voice-pulse 1.2s ease-in-out infinite}
+@keyframes voice-pulse{0%,100%{box-shadow:0 0 0 0 rgba(181,72,47,.45)}50%{box-shadow:0 0 0 7px rgba(181,72,47,0)}}
+@media(prefers-reduced-motion:reduce){.voice-button[data-state=recording]{animation:none}}
+.voice-status{position:fixed;bottom:90px;right:15px;width:370px;max-width:90vw;z-index:100;margin:0;background:#eaeedf;border:1px solid #c8cdbd;border-radius:8px;padding:12px 14px;font-size:12px;color:#43573f}
+.voice-status.error{background:#fbe8df;border-color:#dfb7a5;color:#7e392b}
+@media print{.voice-status{display:none!important}}

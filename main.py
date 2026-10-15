@@ -3,11 +3,13 @@
 import html
 import json
 import os
+from functools import lru_cache
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from openai import AsyncOpenAI, OpenAIError
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from starlette.responses import Response
 
@@ -26,6 +28,32 @@ def require_key() -> None:
             status_code=503,
             detail="Set OPENAI_API_KEY in the backend environment and restart the FastAPI service.",
         )
+
+
+# A spoken cooking request is seconds long; this also bounds memory per request.
+MAX_AUDIO_BYTES = 10 * 1024 * 1024
+AUDIO_EXTENSIONS = {"audio/webm": "webm", "audio/mp4": "mp4", "audio/ogg": "ogg", "audio/wav": "wav", "audio/mpeg": "mp3"}
+TRANSCRIPTION_HINTS = {
+    "zh-Hant": ("zh", "以下是關於料理、食材與食譜的對話，請以繁體中文（台灣用語）轉寫。"),
+    "en": ("en", "A conversation about cooking, ingredients and recipes."),
+}
+
+
+@lru_cache(maxsize=1)
+def openai_client() -> AsyncOpenAI:
+    return AsyncOpenAI()
+
+
+async def transcribe_audio(audio: bytes, content_type: str, language: str) -> str:
+    """Speech to text for push-to-talk; the text is then sent as a normal chat message."""
+    code, prompt = TRANSCRIPTION_HINTS[language]
+    result = await openai_client().audio.transcriptions.create(
+        model=os.getenv("TRANSCRIBE_MODEL", "gpt-4o-transcribe"),
+        file=(f"speech.{AUDIO_EXTENSIONS[content_type]}", audio, content_type),
+        language=code,
+        prompt=prompt,
+    )
+    return result.text.strip()
 
 
 def browser_context_instructions(body: bytes) -> str | None:
@@ -93,6 +121,28 @@ def create_app(frontend_dir: Path | None = None) -> FastAPI:
             agent=get_agent(),
             instructions=browser_context_instructions(await request.body()),
         )
+
+    @app.post("/transcribe")
+    async def transcribe(
+        request: Request, language: str = Query("zh-Hant", pattern="^(zh-Hant|en)$")
+    ) -> dict[str, str]:
+        """Transcribe a push-to-talk recording sent as the raw request body."""
+        require_key()
+        content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
+        if content_type not in AUDIO_EXTENSIONS:
+            raise HTTPException(status_code=415, detail="Send audio as webm, mp4, ogg, wav or mpeg.")
+        audio = bytearray()
+        async for chunk in request.stream():
+            audio.extend(chunk)
+            if len(audio) > MAX_AUDIO_BYTES:
+                raise HTTPException(status_code=413, detail="Recording is too long.")
+        if not audio:
+            raise HTTPException(status_code=400, detail="The recording is empty.")
+        try:
+            text = await transcribe_audio(bytes(audio), content_type, language)
+        except OpenAIError as error:
+            raise HTTPException(status_code=502, detail="Transcription failed. Please try again.") from error
+        return {"text": text}
 
     index = build_dir / "index.html"
 
