@@ -10,6 +10,8 @@ import { KitchenQueue, blockedRecipeReason, changeMessage, kitchenActionContext,
 import { ingredientsSchema, createIngredientsHandler } from "./lib/ingredients";
 import { RecipeCard } from "./recipe-card";
 import { PushToTalkProvider, SendWithVoice, VoiceStatus, usePushToTalk } from "./voice-button";
+import { useSpeech } from "./speech";
+import { nextReplyVoice, readReplyVoice, replyToSpeak, saveReplyVoice, type ReplyVoice } from "./lib/speech";
 type ChatProps = { onIngredients: (ingredients: string[]) => void; onRecipe: (recipe: Recipe, id: string, usedPreferences?: Preferences, replaceRecipeId?: string) => boolean | void; onSelectRecipe: (id: string) => SavedRecipe | undefined; recipes: SavedRecipe[]; preferences: Preferences; currentRecipe?: SavedRecipe; ingredientAction?: IngredientAction; revision: number };
 export function Chat(props: ChatProps) {
   const [agents] = useState(() => ({ default: new HttpAgent({ url: backendUrl("agent") }) }));
@@ -22,10 +24,35 @@ function RecipeCopilot({ onIngredients, onRecipe, onSelectRecipe, recipes, prefe
   const { copilotkit } = useCopilotKit();
   const latestPreferences = useRef(preferences); latestPreferences.current = preferences;
   const runPreferences = useRef(preferences);
+  const speech = useSpeech();
+  const speechRef = useRef(speech); speechRef.current = speech;
+  const [replyVoice, setReplyVoice] = useState<ReplyVoice>(() => { try { return readReplyVoice(window.localStorage); } catch { return "voice"; } });
+  const replyVoiceRef = useRef(replyVoice); replyVoiceRef.current = replyVoice;
+  const spokenMessageIds = useRef(new Set<string>());
+  const turnStartIds = useRef(new Set<string>());
+  const pendingReply = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (!isReady) return;
-    const subscription = agent.subscribe({ onRunInitialized: () => { runPreferences.current = structuredClone(latestPreferences.current); } });
-    return () => subscription.unsubscribe();
+    const subscription = agent.subscribe({
+      onRunInitialized: ({ messages }) => {
+        runPreferences.current = structuredClone(latestPreferences.current);
+        // A tool follow-up run continues the same turn; only a new user message starts one.
+        window.clearTimeout(pendingReply.current);
+        if (messages.at(-1)?.role === "user") {
+          turnStartIds.current = new Set(messages.slice(0, -1).map(message => message.id));
+          speechRef.current.stop("reply:");
+        }
+      },
+      // Read the turn aloud once it is complete: a follow-up run starting within the delay cancels this.
+      onRunFinalized: ({ messages, input }) => {
+        window.clearTimeout(pendingReply.current);
+        pendingReply.current = window.setTimeout(() => {
+          const text = replyToSpeak(replyVoiceRef.current, turnStartIds.current, messages, spokenMessageIds.current);
+          if (text && speechRef.current.available) speechRef.current.speak(`reply:${input.runId}`, text);
+        }, 400);
+      },
+    });
+    return () => { subscription.unsubscribe(); window.clearTimeout(pendingReply.current); };
   }, [agent, isReady]);
   const [queue] = useState(() => new KitchenQueue(preferences));
   const [updateStatus, setUpdateStatus] = useState(queue.status);
@@ -99,11 +126,20 @@ function RecipeCopilot({ onIngredients, onRecipe, onSelectRecipe, recipes, prefe
   const sendVoiceMessage = async (text: string) => {
     // A UI notification may have started while transcribing; wait for it (up to 30 s).
     for (let i = 0; agent.isRunning && i < 200; i++) await new Promise(resolve => setTimeout(resolve, 150));
-    agent.addMessage({ id: crypto.randomUUID(), role: "user", content: text });
+    const id = crypto.randomUUID();
+    spokenMessageIds.current.add(id);
+    agent.addMessage({ id, role: "user", content: text });
     try { await copilotkit.runAgent({ agent }); }
     catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
   };
-  const voice = usePushToTalk(agent.isRunning || !isReady, sendVoiceMessage, agent.isRunning ? t("停止回覆") : t("傳送訊息"));
+  const pushToTalk = usePushToTalk(agent.isRunning || !isReady, sendVoiceMessage, agent.isRunning ? t("停止回覆") : t("傳送訊息"), () => speechRef.current.stop());
+  const cycleReplyVoice = () => {
+    const next = nextReplyVoice(replyVoice);
+    setReplyVoice(next);
+    try { saveReplyVoice(next, window.localStorage); } catch { /* Storage may be disabled. */ }
+    if (next === "off") speech.stop("reply:");
+  };
+  const voice = { ...pushToTalk, speechAvailable: speech.available, replyVoice, cycleReplyVoice };
   const latest = useRef(onRecipe); latest.current = onRecipe;
   const latestIngredients = useRef(onIngredients); latestIngredients.current = onIngredients;
   const ingredientsHandler = useMemo(() => createIngredientsHandler(ingredients => {

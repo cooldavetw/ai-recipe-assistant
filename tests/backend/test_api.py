@@ -201,3 +201,27 @@ def test_transcribe_returns_text_and_validates_recordings(client, monkeypatch):
     monkeypatch.setattr(main, "MAX_AUDIO_BYTES", 3)
     assert client.post(url, content=b"toolong", headers=webm).status_code == 413
     assert len(calls) == 1
+
+
+def test_speech_returns_mp3_and_validates_text(client, monkeypatch):
+    calls = []
+
+    async def fake_speech(text, language):
+        calls.append((text, language))
+        return b"ID3audio"
+
+    monkeypatch.setattr(main, "synthesize_speech", fake_speech)
+    assert client.post("/speech", json={"text": "你好"}).status_code == 503  # no credentials
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    response = client.post("/speech", json={"text": " Step 1. Boil water. ", "language": "en"})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/mpeg"
+    assert response.content == b"ID3audio"
+    assert calls == [("Step 1. Boil water.", "en")]
+
+    assert client.post("/speech", json={"text": "   "}).status_code == 400
+    assert client.post("/speech", json={"text": ""}).status_code == 422
+    assert client.post("/speech", json={"text": "x" * (main.MAX_SPEECH_CHARS + 1)}).status_code == 422
+    assert client.post("/speech", json={"text": "hi", "language": "fr"}).status_code == 422
+    assert len(calls) == 1

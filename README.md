@@ -10,6 +10,10 @@ Chat about ingredients, cravings, substitutions or meal planning. When a questio
 
 The microphone button beside the chat's send button is push-to-talk: tap to start, tap again to send (recordings stop after 60 seconds). The browser records with `MediaRecorder` and posts the audio to `POST /transcribe?language=zh-Hant|en`; FastAPI transcribes it with OpenAI, keeping the key server-side, and the text is sent as a normal chat message, so tools such as `generate_recipe` work as for typed messages. Browsers allow the microphone only on secure pages (HTTPS or `localhost`), and the button is hidden otherwise; a self-signed certificate may need to be trusted first. Each voice message makes one transcription request, billed to the OpenAI account.
 
+### Spoken replies
+
+The speaker button beside the microphone cycles how replies are read aloud: replies to voice messages only (default), all replies, or off; the choice is remembered in the browser. A turn is read once it is complete, including tool follow-up runs, with Markdown removed. Each recipe step has its own 🔊 button; tap again to stop. Speech comes from `POST /speech` (JSON `{text, language}`, at most 4,000 characters), which returns MP3 from OpenAI. One clip plays at a time; tapping the microphone or starting a new message stops a spoken reply. Each clip is one billed speech request.
+
 ## Setup
 
 Requires Python 3.10+ and Node.js 22+.
@@ -22,7 +26,7 @@ cp .env.example .env.local
 npm --prefix frontend ci
 ```
 
-Set `OPENAI_API_KEY` in `.env.local`. The key remains on the backend. Optionally set `RECIPE_MODEL` (default `openai:gpt-4o`). Optionally set `TRANSCRIBE_MODEL` (default `gpt-4o-transcribe`) for voice input. Exported environment variables take precedence over `.env.local`.
+Set `OPENAI_API_KEY` in `.env.local`. The key remains on the backend. Optionally set `RECIPE_MODEL` (default `openai:gpt-4o`). Optionally set `TRANSCRIBE_MODEL` (default `gpt-4o-transcribe`) for voice input. `SPEECH_MODEL` (default `gpt-4o-mini-tts`) and `SPEECH_VOICE` (default `coral`) control spoken replies. Exported environment variables take precedence over `.env.local`.
 
 ```sh
 npm --prefix frontend run build
@@ -51,6 +55,7 @@ Open http://127.0.0.1:5173; Vite proxies `/agent` and `/health` to FastAPI. Set 
 - `frontend/src/lib/recipe.ts`: validated recipe schema and duplicate-call handling.
 - `frontend/src/recipe-card.tsx`: recipe display, checklist and printing.
 - `frontend/src/voice-button.tsx`, `frontend/src/lib/voice.ts`: push-to-talk recording and transcription.
+- `frontend/src/speech.tsx`, `frontend/src/lib/speech.ts`: spoken replies and recipe-step read-aloud.
 - `page.tsx`: compatibility export of the frontend page.
 - `style.css`: responsive kitchen theme, shared by the frontend.
 

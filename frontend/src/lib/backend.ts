@@ -4,7 +4,7 @@ export type BackendStatus = "checking" | "ready" | "unconfigured" | "unavailable
  * A backend URL relative to the page. FastAPI serves the page and the API
  * together, so this keeps both under whatever prefix the app is mounted at.
  */
-export function backendUrl(path: "agent" | "health" | "transcribe", base = document.baseURI): string {
+export function backendUrl(path: "agent" | "health" | "transcribe" | "speech", base = document.baseURI): string {
   return new URL(path, base).toString();
 }
 

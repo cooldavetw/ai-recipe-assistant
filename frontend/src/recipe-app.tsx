@@ -6,6 +6,7 @@ import { getBackendStatus, type BackendStatus } from "./lib/backend";
 import type { Preferences, IngredientAction } from "./lib/kitchen";
 import { removeRecipe, type Recipe, type SavedRecipe } from "./lib/recipe";
 import { RecipeCard } from "./recipe-card";
+import { SpeechProvider } from "./speech";
 
 export default function RecipeApp() {
   const [language, setLanguage] = useState<Language>(() => { try { return readLanguage(window.localStorage); } catch { return "zh-Hant"; } });
@@ -66,7 +67,7 @@ export function KitchenApp({ setLanguage }: { setLanguage: (language: Language) 
   }
   const current = recipes.find(recipe => recipe.id === selected) ?? recipes.at(-1);
   const preferences: Preferences = { diet, servings, allergies: allergies.trim(), ingredients };
-  return <div className={`app-shell ${status === "ready" ? "with-chat" : ""}`}>
+  return <SpeechProvider available={status === "ready"}><div className={`app-shell ${status === "ready" ? "with-chat" : ""}`}>
     <header className="site-header"><a className="brand" href="." aria-label={t("食光首頁")}><span className="brand-icon">p.</span>{t("食光")}<span className="brand-dot">•</span></a><span className="header-note">{t("一點靈感，讓每天都好吃。")}</span><span className="edition">{t("你的 AI 廚房")}</span><label className="language-selector">{t("語言")}<select value={language} onChange={event => setLanguage(event.target.value as Language)} aria-label="Language / 語言"><option value="zh-Hant">繁體中文</option><option value="en">English</option></select></label></header>
     <main><section className="intro"><p className="eyebrow"><span/> {t("用手邊食材，開始一頓好料理")}</p><h1>{t("冰箱滿滿，")}<br/>{t("今天")}<em>{t("煮什麼？")}</em></h1><p className="intro-copy">{t("把手邊食材，變成下一道拿手好菜。")}<br/>{t("專屬你的料理靈感，陪你輕鬆下廚。")}</p></section>
     <section className="preferences" aria-label={t("料理偏好")}><div><label htmlFor="diet">{t("飲食偏好")}</label><select id="diet" value={diet} onChange={event => setDiet(event.target.value)}>{[["No preference", "不限"], ["Vegetarian", "蛋奶素"], ["Vegan", "全素"], ["Gluten-free", "無麩質"], ["Dairy-free", "不含乳製品"]].map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></div><div><label htmlFor="servings">{t("用餐人數")}</label><select id="servings" value={servings} onChange={event => setServings(event.target.value)}>{[1,2,3,4,6,8].map(n => <option key={n} value={n}>{n} {language === "en" && n === 1 ? "person" : t("人")}</option>)}</select></div><div className="allergies-field"><label htmlFor="allergies">{t("過敏或避免的食材")}</label><input id="allergies" value={allergies} maxLength={500} onChange={event => setAllergies(event.target.value)} placeholder={t("例如：花生、甲殼類")}/></div></section>
@@ -77,5 +78,5 @@ export function KitchenApp({ setLanguage }: { setLanguage: (language: Language) 
     {current ? <><RecipeCard key={current.id} recipe={current} onIngredientAction={status === "ready" ? (ingredientIndex, kind) => setIngredientAction(previous => ({ id: (previous?.id ?? 0) + 1, kind, ingredientIndex, recipe: current })) : undefined}/>{status === "ready" && <button className="revise-button" onClick={() => setRevision(value => value + 1)}>{t("請助理調整這份食譜")}</button>}{previousVersions[current.id] && <button className="revise-button undo-button" onClick={() => undoRevision(current.id)}>{t("復原上一版")}</button>}<button className="revise-button delete-button" onClick={() => deleteRecipe(current)}>{t("刪除食譜")}</button></> : <div className="empty-kitchen"><div className="plate-art" aria-hidden="true"><div className="plate"><span className="leaf leaf-one"/><span className="leaf leaf-two"/><span className="tomato"/><span className="grain"/></div><div className="fork">┃</div><div className="spark">✳</div></div><p className="eyebrow">{t("下一道美味，正等著你")}</p><h3>{t("你的下一道拿手菜，從這裡開始。")}</h3><p>{t("告訴料理夥伴，你手邊有哪些食材。")}<br/>{t("為你量身打造的食譜，就會出現在這裡。")}</p><div className="empty-tags"><span>{t("少一點浪費")}</span><span>{t("多一點靈感")}</span><span>{t("專屬你的美味")}</span></div></div>}
     </section><footer><span>{t("食光 · 讓日常料理多一點想像")}</span><span>{t("帶著好奇心，一起下廚。")}</span></footer></main>
     {status === "ready" && <Suspense fallback={<p role="status">{t("正在準備你的廚房…")}</p>}><Chat onIngredients={setIngredients} onRecipe={addRecipe} onSelectRecipe={selectRecipe} recipes={recipes} preferences={preferences} currentRecipe={current} ingredientAction={ingredientAction} revision={revision}/></Suspense>}
-  </div>;
+  </div></SpeechProvider>;
 }

@@ -2,12 +2,16 @@ import { createContext, useContext, useEffect, useRef, useState, type ButtonHTML
 import { CopilotChatInput } from "@copilotkit/react-core/v2";
 import { useLanguage } from "./locale";
 import { TranscriptionError, VoiceRecorder, transcribe, voiceSupported } from "./lib/voice";
+import type { ReplyVoice } from "./lib/speech";
+import { SpeakerIcon } from "./icons";
 
 export type VoiceState = "idle" | "recording" | "transcribing";
 type PushToTalk = { supported: boolean; state: VoiceState; error?: string; disabled: boolean; toggle: () => void; sendLabel: string };
+/** Push-to-talk plus the spoken-reply setting, both shown in the chat input. */
+type ChatVoice = PushToTalk & { speechAvailable: boolean; replyVoice: ReplyVoice; cycleReplyVoice: () => void };
 
 /** Tap to start, tap again to send: easier than holding a button with messy hands. */
-export function usePushToTalk(busy: boolean, send: (text: string) => Promise<void>, sendLabel: string): PushToTalk {
+export function usePushToTalk(busy: boolean, send: (text: string) => Promise<void>, sendLabel: string, onStart: () => void = () => {}): PushToTalk {
   const { language, t } = useLanguage();
   const [supported] = useState(() => voiceSupported());
   const [state, setState] = useState<VoiceState>("idle");
@@ -33,6 +37,7 @@ export function usePushToTalk(busy: boolean, send: (text: string) => Promise<voi
     if (state === "recording") { void finish.current(); return; }
     if (state !== "idle" || busy) return;
     setError(undefined);
+    onStart();
     const next = new VoiceRecorder(() => { void finish.current(); });
     recorder.current = next;
     setState("recording");
@@ -45,7 +50,7 @@ export function usePushToTalk(busy: boolean, send: (text: string) => Promise<voi
   return { supported, state, error, disabled: state === "transcribing" || (state === "idle" && busy), toggle, sendLabel };
 }
 
-const PushToTalkContext = createContext<PushToTalk | undefined>(undefined);
+const PushToTalkContext = createContext<ChatVoice | undefined>(undefined);
 export const PushToTalkProvider = PushToTalkContext.Provider;
 
 function MicIcon() {
@@ -57,7 +62,9 @@ export function SendWithVoice(props: ButtonHTMLAttributes<HTMLButtonElement>) {
   const { t } = useLanguage();
   const voice = useContext(PushToTalkContext);
   const label = voice?.state === "recording" ? t("說完了，送出語音") : voice?.state === "transcribing" ? t("正在辨識語音…") : t("按一下開始說話");
+  const replyLabel = voice?.replyVoice === "all" ? t("語音回覆：朗讀所有回覆（點一下切換）") : voice?.replyVoice === "off" ? t("語音回覆：關閉（點一下切換）") : t("語音回覆：只朗讀語音提問的回覆（點一下切換）");
   return <>
+    {voice?.speechAvailable && <button type="button" className="voice-button reply-voice" data-mode={voice.replyVoice} aria-label={replyLabel} title={replyLabel} onClick={voice.cycleReplyVoice}><SpeakerIcon mode={voice.replyVoice}/></button>}
     {voice?.supported && <button type="button" className="voice-button" data-state={voice.state} disabled={voice.disabled} aria-pressed={voice.state === "recording"} aria-label={label} title={label} onClick={voice.toggle}><MicIcon/></button>}
     <CopilotChatInput.SendButton {...props} aria-label={voice?.sendLabel} title={voice?.sendLabel}/>
   </>;

@@ -5,11 +5,13 @@ import json
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from openai import AsyncOpenAI, OpenAIError
+from pydantic import BaseModel, Field
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from starlette.responses import Response
 
@@ -54,6 +56,31 @@ async def transcribe_audio(audio: bytes, content_type: str, language: str) -> st
         prompt=prompt,
     )
     return result.text.strip()
+
+
+# OpenAI's speech input limit is 4096 characters; the browser trims longer replies.
+MAX_SPEECH_CHARS = 4000
+SPEECH_INSTRUCTIONS = {
+    "zh-Hant": "用自然、親切的台灣華語朗讀，語速適中、咬字清楚，像在廚房裡陪你做菜的朋友。",
+    "en": "Speak in a warm, friendly and clear voice at a relaxed pace, like a friend helping in the kitchen.",
+}
+
+
+class SpeechRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=MAX_SPEECH_CHARS)
+    language: Literal["zh-Hant", "en"] = "zh-Hant"
+
+
+async def synthesize_speech(text: str, language: str) -> bytes:
+    """Text to MP3 for spoken replies and recipe steps."""
+    result = await openai_client().audio.speech.create(
+        model=os.getenv("SPEECH_MODEL", "gpt-4o-mini-tts"),
+        voice=os.getenv("SPEECH_VOICE", "coral"),
+        input=text,
+        instructions=SPEECH_INSTRUCTIONS[language],
+        response_format="mp3",
+    )
+    return result.content
 
 
 def browser_context_instructions(body: bytes) -> str | None:
@@ -143,6 +170,18 @@ def create_app(frontend_dir: Path | None = None) -> FastAPI:
         except OpenAIError as error:
             raise HTTPException(status_code=502, detail="Transcription failed. Please try again.") from error
         return {"text": text}
+
+    @app.post("/speech", response_class=Response)
+    async def speech(body: SpeechRequest) -> Response:
+        """Read a reply or recipe step aloud; returns MP3 audio."""
+        require_key()
+        if not body.text.strip():
+            raise HTTPException(status_code=400, detail="Nothing to read aloud.")
+        try:
+            audio = await synthesize_speech(body.text.strip(), body.language)
+        except OpenAIError as error:
+            raise HTTPException(status_code=502, detail="Speech synthesis failed. Please try again.") from error
+        return Response(content=audio, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
     index = build_dir / "index.html"
 
