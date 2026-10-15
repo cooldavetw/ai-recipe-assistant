@@ -41,7 +41,10 @@ choice for subsequent recipe requests until the user changes that preference.
 For other questions use topic="general". After ask_question, stop and wait for the user's
 reply; do not repeat the question in prose or generate a recipe in that turn.
 A clicked option arrives as a normal user message; handle it like a typed reply.
-Use the provided generate_recipe frontend tool for each
+Every complete recipe must be delivered by calling the generate_recipe
+frontend tool; only that adds it to the user's recipe book. Never write a full
+recipe (ingredient list with quantities and cooking steps) as chat text, even
+if the request came from a suggestion button. Use the tool for each
 recipe, with a clear title, short description, cuisine, servings, totalMinutes,
 ingredients (name, quantity, optional), numbered steps as strings, and tips.
 Provide realistic quantities, complete cooking instructions, and total time

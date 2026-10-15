@@ -161,3 +161,17 @@ def test_latest_browser_preferences_reach_model_on_each_run(client, monkeypatch)
         assert state["interactionLanguage"] == "en"
         assert state["selectedRecipe"]["title"] == "Tofu"
     assert seen[0] != seen[1]
+
+
+def test_only_preference_notifications_forbid_recipe_generation():
+    def instructions(*context):
+        body = json.dumps({"threadId": "t", "runId": "r", "state": {}, "messages": [], "tools": [], "forwardedProps": {},
+                           "context": [{"description": "entry", "value": value} for value in context]})
+        return main.browser_context_instructions(body.encode())
+
+    kitchen = json.dumps({"interactionLanguage": "zh-Hant", "preferences": {"servings": "2"}})
+    assert "Do not automatically regenerate" not in instructions(kitchen)
+    assert "Do not automatically regenerate" not in instructions(kitchen, json.dumps({"action": "revise"}))
+    assert "Do not automatically regenerate" in instructions(kitchen, json.dumps({"action": "change"}))
+    assert "Do not automatically regenerate" not in instructions(kitchen, "not json")
+    assert "Do not automatically regenerate" in instructions(kitchen, json.dumps(json.dumps({"action": "change"})))
