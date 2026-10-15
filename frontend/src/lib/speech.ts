@@ -15,7 +15,6 @@ export function readReplyVoice(storage?: Pick<Storage, "getItem">): ReplyVoice {
 export function saveReplyVoice(mode: ReplyVoice, storage?: Pick<Storage, "setItem">) {
   try { storage?.setItem(REPLY_VOICE_STORAGE_KEY, mode); } catch { /* In-memory choice still works. */ }
 }
-export const nextReplyVoice = (mode: ReplyVoice): ReplyVoice => MODES[(MODES.indexOf(mode) + 1) % MODES.length];
 
 /** Markdown symbols and links read badly aloud; keep the words, within the API limit. */
 export function speakableText(markdown: string): string {

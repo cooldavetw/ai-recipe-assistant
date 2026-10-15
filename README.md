@@ -12,7 +12,7 @@ The microphone button beside the chat's send button is push-to-talk: tap to star
 
 ### Spoken replies
 
-The speaker button beside the microphone cycles how replies are read aloud: replies to voice messages only (default), all replies, or off; the choice is remembered in the browser. A turn is read once it is complete, including tool follow-up runs, with Markdown removed. Each recipe step has its own 🔊 button; tap again to stop. Speech comes from `POST /speech` (JSON `{text, language}`, at most 4,000 characters), which returns MP3 from OpenAI. One clip plays at a time; tapping the microphone or starting a new message stops a spoken reply. Each clip is one billed speech request.
+The chat input's + menu has a “Spoken replies” setting: replies to voice messages only (default), all replies, or off; the choice is remembered in the browser. It lives in the menu so the input row keeps room for typing in a narrow sidebar. A turn is read once it is complete, including tool follow-up runs, with Markdown removed. Each recipe step has its own 🔊 button; tap again to stop. Speech comes from `POST /speech` (JSON `{text, language}`, at most 4,000 characters), which returns MP3 from OpenAI. One clip plays at a time; tapping the microphone or starting a new message stops a spoken reply. Each clip is one billed speech request.
 
 ## Setup
 

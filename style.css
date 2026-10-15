@@ -12,7 +12,7 @@ html[lang="zh-Hant"] .intro h1{letter-spacing:0;line-height:1.3}html[lang="zh-Ha
 .ingredient-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.ingredient-row>span{min-width:0;overflow-wrap:anywhere}.ingredient-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;flex-shrink:0;max-width:145px}.ingredient-actions button{border:1px solid #c8cdbd;background:#f2f4e9;color:#43573f;border-radius:6px;padding:6px 8px;font-size:10px;line-height:1.5}.ingredient-actions button:hover:not(:disabled){background:#e2ebd7}.ingredient-actions button:disabled{opacity:.5;cursor:default}@media print{.ingredient-actions{display:none!important}}
 
 /* Push-to-talk: sits beside the send button inside the CopilotKit input. */
-.voice-button{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;margin-right:6px;border-radius:50%;border:1px solid #c8cdbd;background:#fffef7;color:#315b3f;cursor:pointer}
+.voice-button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:36px;height:36px;border-radius:50%;border:1px solid #c8cdbd;background:#fffef7;color:#315b3f;cursor:pointer}
 .voice-button:disabled{opacity:.45;cursor:not-allowed}
 .voice-button[data-state=recording]{background:#b5482f;border-color:#b5482f;color:#fff;animation:voice-pulse 1.2s ease-in-out infinite}
 @keyframes voice-pulse{0%,100%{box-shadow:0 0 0 0 rgba(181,72,47,.45)}50%{box-shadow:0 0 0 7px rgba(181,72,47,0)}}
@@ -20,11 +20,9 @@ html[lang="zh-Hant"] .intro h1{letter-spacing:0;line-height:1.3}html[lang="zh-Ha
 .voice-status{position:fixed;bottom:90px;right:15px;width:370px;max-width:90vw;z-index:100;margin:0;background:#eaeedf;border:1px solid #c8cdbd;border-radius:8px;padding:12px 14px;font-size:12px;color:#43573f}
 .voice-status.error{background:#fbe8df;border-color:#dfb7a5;color:#7e392b}
 @media print{.voice-status{display:none!important}}
-.voice-button.reply-voice[data-mode=off]{color:#8c9382}
-.voice-button.reply-voice[data-mode=all]{background:#e3eadb}
 /* Read-aloud button beside each recipe step. */
 .steps li>p{flex:1;min-width:0}
 .step-speech{flex:none;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin-left:8px;border-radius:50%;border:1px solid #c8cdbd;background:#fffef7;color:#315b3f;cursor:pointer;align-self:flex-start;margin-left:0}
 .step-speech[aria-pressed=true]{background:#315b3f;border-color:#315b3f;color:#fff}
 .step-speech[aria-busy=true]{opacity:.6;cursor:progress}
-@media print{.step-speech,.reply-voice{display:none!important}}
+@media print{.step-speech{display:none!important}}

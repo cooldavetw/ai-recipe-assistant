@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MAX_SPEECH_CHARS, fetchSpeech, nextReplyVoice, readReplyVoice, replyToSpeak, saveReplyVoice, speakableText, SpeechError, stepSpeech } from "../src/lib/speech";
+import { MAX_SPEECH_CHARS, fetchSpeech, readReplyVoice, replyToSpeak, saveReplyVoice, speakableText, SpeechError, stepSpeech } from "../src/lib/speech";
 
 test("markdown is reduced to readable words", () => {
   assert.equal(speakableText("## Tips\n\n- **Salt** the [water](https://x.test) well\n1. Use `2 cups`"), "Tips\nSalt the water well\nUse 2 cups");
@@ -31,10 +31,7 @@ test("voice mode reads only replies to spoken messages; all reads every reply; o
   assert.equal(replyToSpeak("off", before, messages, new Set(["u2"])), "");
 });
 
-test("the reply voice setting cycles and survives storage failures", () => {
-  assert.equal(nextReplyVoice("voice"), "all");
-  assert.equal(nextReplyVoice("all"), "off");
-  assert.equal(nextReplyVoice("off"), "voice");
+test("the reply voice setting is remembered and survives storage failures", () => {
   const values = new Map<string, string>();
   const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
   assert.equal(readReplyVoice(storage), "voice");
