@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 const Chat = lazy(() => import("./chat").then(module => ({ default: module.Chat })));
 import { getBackendStatus, type BackendStatus } from "./lib/backend";
 import type { Preferences, IngredientAction } from "./lib/kitchen";
-import type { Recipe, SavedRecipe } from "./lib/recipe";
+import { removeRecipe, type Recipe, type SavedRecipe } from "./lib/recipe";
 import { RecipeCard } from "./recipe-card";
 
 export default function RecipeApp() {
@@ -51,6 +51,19 @@ export function KitchenApp({ setLanguage }: { setLanguage: (language: Language) 
     setRecipes(previous => previous.map(item => item.id === id ? previousVersion : item));
     setPreviousVersions(({ [id]: _, ...rest }) => rest);
   }
+  function deleteRecipe(recipe: SavedRecipe) {
+    if (!window.confirm(`${t("確定要刪除這份食譜嗎？此動作無法復原。")}\n${recipe.title}`)) return;
+    const next = removeRecipe(recipes, recipe.id);
+    setRecipes(next.recipes);
+    setSelected(next.selected);
+    setPreviousVersions(({ [recipe.id]: _, ...rest }) => rest);
+  }
+  /** Returns the recipe so the agent can read its current content. */
+  function selectRecipe(id: string): SavedRecipe | undefined {
+    const recipe = recipes.find(item => item.id === id);
+    if (recipe) setSelected(id);
+    return recipe;
+  }
   const current = recipes.find(recipe => recipe.id === selected) ?? recipes.at(-1);
   const preferences: Preferences = { diet, servings, allergies: allergies.trim(), ingredients };
   return <div className={`app-shell ${status === "ready" ? "with-chat" : ""}`}>
@@ -61,8 +74,8 @@ export function KitchenApp({ setLanguage }: { setLanguage: (language: Language) 
     {status !== "ready" && <div className="status-panel" role="status">{status === "checking" ? t("正在準備你的廚房…") : status === "unconfigured" ? t("廚房即將就緒。請在後端 .env.local 設定 OPENAI_API_KEY，重新啟動 FastAPI 後再次檢查。") : t("目前無法連線到廚房。請確認 FastAPI 已啟動，再試一次。")}{status !== "checking" && <button onClick={() => setCheck(value => value + 1)}>{t("再次檢查")}</button>}</div>}
     <section className="recipe-section"><div className="section-heading"><div><p className="eyebrow">{t("從聊天到餐桌")}</p><h2>{t("我的食譜本")}<span>{String(recipes.length).padStart(2,"0")}</span></h2></div><span className="session-note">{t("僅保留於本次使用期間")}</span></div>
     {recipes.length > 1 && <nav className="recipe-tabs" aria-label={t("我的食譜")}>{recipes.map(recipe => <button key={recipe.id} aria-pressed={current?.id === recipe.id} onClick={() => setSelected(recipe.id)}>{recipe.title}</button>)}</nav>}
-    {current ? <><RecipeCard key={current.id} recipe={current} onIngredientAction={status === "ready" ? (ingredientIndex, kind) => setIngredientAction(previous => ({ id: (previous?.id ?? 0) + 1, kind, ingredientIndex, recipe: current })) : undefined}/>{status === "ready" && <button className="revise-button" onClick={() => setRevision(value => value + 1)}>{t("請助理調整這份食譜")}</button>}{previousVersions[current.id] && <button className="revise-button undo-button" onClick={() => undoRevision(current.id)}>{t("復原上一版")}</button>}</> : <div className="empty-kitchen"><div className="plate-art" aria-hidden="true"><div className="plate"><span className="leaf leaf-one"/><span className="leaf leaf-two"/><span className="tomato"/><span className="grain"/></div><div className="fork">┃</div><div className="spark">✳</div></div><p className="eyebrow">{t("下一道美味，正等著你")}</p><h3>{t("你的下一道拿手菜，從這裡開始。")}</h3><p>{t("告訴料理夥伴，你手邊有哪些食材。")}<br/>{t("為你量身打造的食譜，就會出現在這裡。")}</p><div className="empty-tags"><span>{t("少一點浪費")}</span><span>{t("多一點靈感")}</span><span>{t("專屬你的美味")}</span></div></div>}
+    {current ? <><RecipeCard key={current.id} recipe={current} onIngredientAction={status === "ready" ? (ingredientIndex, kind) => setIngredientAction(previous => ({ id: (previous?.id ?? 0) + 1, kind, ingredientIndex, recipe: current })) : undefined}/>{status === "ready" && <button className="revise-button" onClick={() => setRevision(value => value + 1)}>{t("請助理調整這份食譜")}</button>}{previousVersions[current.id] && <button className="revise-button undo-button" onClick={() => undoRevision(current.id)}>{t("復原上一版")}</button>}<button className="revise-button delete-button" onClick={() => deleteRecipe(current)}>{t("刪除食譜")}</button></> : <div className="empty-kitchen"><div className="plate-art" aria-hidden="true"><div className="plate"><span className="leaf leaf-one"/><span className="leaf leaf-two"/><span className="tomato"/><span className="grain"/></div><div className="fork">┃</div><div className="spark">✳</div></div><p className="eyebrow">{t("下一道美味，正等著你")}</p><h3>{t("你的下一道拿手菜，從這裡開始。")}</h3><p>{t("告訴料理夥伴，你手邊有哪些食材。")}<br/>{t("為你量身打造的食譜，就會出現在這裡。")}</p><div className="empty-tags"><span>{t("少一點浪費")}</span><span>{t("多一點靈感")}</span><span>{t("專屬你的美味")}</span></div></div>}
     </section><footer><span>{t("食光 · 讓日常料理多一點想像")}</span><span>{t("帶著好奇心，一起下廚。")}</span></footer></main>
-    {status === "ready" && <Suspense fallback={<p role="status">{t("正在準備你的廚房…")}</p>}><Chat onIngredients={setIngredients} onRecipe={addRecipe} preferences={preferences} currentRecipe={current} ingredientAction={ingredientAction} revision={revision}/></Suspense>}
+    {status === "ready" && <Suspense fallback={<p role="status">{t("正在準備你的廚房…")}</p>}><Chat onIngredients={setIngredients} onRecipe={addRecipe} onSelectRecipe={selectRecipe} recipes={recipes} preferences={preferences} currentRecipe={current} ingredientAction={ingredientAction} revision={revision}/></Suspense>}
   </div>;
 }

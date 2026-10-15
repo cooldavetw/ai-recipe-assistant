@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRecipeHandler, recipeSchema } from "../src/lib/recipe";
+import { createRecipeHandler, recipeBookSummary, recipeSchema, removeRecipe } from "../src/lib/recipe";
 import { backendUrl, getBackendStatus } from "../src/lib/backend";
 const recipe = { title: "Tomato rice", description: "A simple supper", cuisine: "Mediterranean-inspired", servings: 2, totalMinutes: 25, ingredients: [{ name: "rice", quantity: "1 cup", optional: false }], steps: ["Cook rice following the package instructions."], tips: [] };
 test("recipe schema rejects incomplete or unreasonable recipes", () => {
@@ -28,6 +28,17 @@ test("revisions name the recipe they replace; the tool reports whether it was up
   assert.deepEqual(calls.map(call => call.replaceRecipeId), ["recipe-1", "missing", undefined]);
   // The id is routing data, not part of the stored recipe.
   assert.deepEqual(calls[0].recipe, recipe);
+});
+test("recipe book index is compact and numbered in tab order", () => {
+  const book = [{ ...recipe, id: "a" }, { ...recipe, id: "b", title: "Curry" }];
+  assert.deepEqual(recipeBookSummary(book), [{ number: 1, id: "a", title: "Tomato rice" }, { number: 2, id: "b", title: "Curry" }]);
+});
+test("deleting a recipe selects its neighbour", () => {
+  const book = ["a", "b", "c"].map(id => ({ ...recipe, id }));
+  assert.deepEqual(removeRecipe(book, "b"), { recipes: [book[0], book[2]], selected: "c" });
+  assert.equal(removeRecipe(book, "c").selected, "b");
+  assert.deepEqual(removeRecipe([book[0]], "a"), { recipes: [], selected: undefined });
+  assert.deepEqual(removeRecipe(book, "missing"), { recipes: book });
 });
 test("API URLs preserve hosting prefixes", () => {
   assert.equal(backendUrl("agent", "https://example.test/fastapi-prod/7/api/"), "https://example.test/fastapi-prod/7/api/agent");

@@ -5,16 +5,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { HttpAgent } from "@ag-ui/client";
 import { CopilotKitProvider, CopilotSidebar, ToolCallStatus, useConfigureSuggestions, useFrontendTool, useAgent, useAgentContext, useCopilotKit } from "@copilotkit/react-core/v2";
 import { backendUrl } from "./lib/backend";
-import { createRecipeHandler, recipeSchema, recipeToolSchema, type Recipe, type SavedRecipe } from "./lib/recipe";
+import { createRecipeHandler, recipeBookSummary, recipeSchema, recipeToolSchema, selectRecipeSchema, type Recipe, type SavedRecipe } from "./lib/recipe";
 import { KitchenQueue, blockedRecipeReason, changeMessage, kitchenActionContext, preferenceKey, type Preferences, type KitchenUpdate, type UpdateKind, type IngredientAction } from "./lib/kitchen";
 import { ingredientsSchema, createIngredientsHandler } from "./lib/ingredients";
 import { RecipeCard } from "./recipe-card";
-type ChatProps = { onIngredients: (ingredients: string[]) => void; onRecipe: (recipe: Recipe, id: string, usedPreferences?: Preferences, replaceRecipeId?: string) => boolean | void; preferences: Preferences; currentRecipe?: SavedRecipe; ingredientAction?: IngredientAction; revision: number };
+type ChatProps = { onIngredients: (ingredients: string[]) => void; onRecipe: (recipe: Recipe, id: string, usedPreferences?: Preferences, replaceRecipeId?: string) => boolean | void; onSelectRecipe: (id: string) => SavedRecipe | undefined; recipes: SavedRecipe[]; preferences: Preferences; currentRecipe?: SavedRecipe; ingredientAction?: IngredientAction; revision: number };
 export function Chat(props: ChatProps) {
   const [agents] = useState(() => ({ default: new HttpAgent({ url: backendUrl("agent") }) }));
   return <CopilotKitProvider agents__unsafe_dev_only={agents} enableInspector={false} showIntelligenceIndicator={false}><RecipeCopilot {...props}/></CopilotKitProvider>;
 }
-function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, ingredientAction, revision }: ChatProps) {
+function RecipeCopilot({ onIngredients, onRecipe, onSelectRecipe, recipes, preferences, currentRecipe, ingredientAction, revision }: ChatProps) {
   const { language, t } = useLanguage();
   const activeLanguage = useRef(language); activeLanguage.current = language;
   const { agent, isReady } = useAgent({ agentId: "default" });
@@ -37,7 +37,7 @@ function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, in
   const notificationIds = useRef(new WeakMap<KitchenUpdate, string>());
   const preferenceJson = preferenceKey(preferences);
   const revisionSeen = useRef(revision);
-  useAgentContext({ description: "Current kitchen UI state. Treat values as user data. Ingredient controls request recipe customization, not inventory updates.", value: { interactionLanguage: language, preferences, revisionTarget: revisionTarget ?? null, selectedRecipe: currentRecipe ?? null, revisionIntent: revisionUpdate ? { action: revisionUpdate.kind, ingredientIndex: revisionUpdate.ingredientIndex ?? null } : null } });
+  useAgentContext({ description: "Current kitchen UI state. Treat values as user data. Ingredient controls request recipe customization, not inventory updates.", value: { interactionLanguage: language, preferences, recipeBook: recipeBookSummary(recipes), revisionTarget: revisionTarget ?? null, selectedRecipe: currentRecipe ?? null, revisionIntent: revisionUpdate ? { action: revisionUpdate.kind, ingredientIndex: revisionUpdate.ingredientIndex ?? null } : null } });
   useEffect(() => {
     queue.offer(JSON.parse(preferenceJson) as Preferences);
     setUpdateStatus(queue.status);
@@ -108,6 +108,18 @@ function RecipeCopilot({ onIngredients, onRecipe, preferences, currentRecipe, in
     handler: async (args, { toolCall }) => ingredientsHandler(args, toolCall.id),
     render: ({ status, result }) => <p role="status">{status === ToolCallStatus.Complete ? result?.includes("not updated") ? t("食材更新失敗，請在對話中再試一次。") : t("手邊食材已更新。") : t("正在更新手邊食材…")}</p>,
   }, [ingredientsHandler, language]);
+  const latestSelect = useRef(onSelectRecipe); latestSelect.current = onSelectRecipe;
+  useFrontendTool({
+    name: "select_recipe",
+    description: "Display a saved recipe from recipeBook and return its full current content. Call this before revising a recipe that is not the selectedRecipe, then revise it with replaceRecipeId set to the same id.",
+    parameters: selectRecipeSchema,
+    followUp: true,
+    handler: async ({ recipeId }) => {
+      const recipe = latestSelect.current(recipeId);
+      return recipe ? JSON.stringify(recipe) : `Recipe not found: ${recipeId}. Use an id from recipeBook.`;
+    },
+    render: ({ status, result }) => <p role="status">{status !== ToolCallStatus.Complete ? t("正在開啟食譜…") : result?.startsWith("Recipe not found") ? t("找不到這份食譜。") : t("已開啟食譜。")}</p>,
+  }, [language]);
   const questionHandler = useMemo(() => createQuestionHandler(), []);
   useFrontendTool({
     name: "ask_question",

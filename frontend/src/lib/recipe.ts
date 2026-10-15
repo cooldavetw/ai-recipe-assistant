@@ -33,3 +33,15 @@ export function createRecipeHandler(show: (recipe: Recipe, id: string, replaceRe
     return result;
   };
 }
+/** Compact index of the recipe book for agent context; full recipes come from select_recipe. */
+export function recipeBookSummary(recipes: SavedRecipe[]) {
+  return recipes.map((recipe, index) => ({ number: index + 1, id: recipe.id, title: recipe.title }));
+}
+export const selectRecipeSchema = z.object({ recipeId: text(100).describe("id from recipeBook") });
+/** Remove a recipe and pick the neighbour that takes its place in the tabs. */
+export function removeRecipe(recipes: SavedRecipe[], id: string): { recipes: SavedRecipe[]; selected?: string } {
+  const index = recipes.findIndex(recipe => recipe.id === id);
+  if (index < 0) return { recipes };
+  const remaining = recipes.filter(recipe => recipe.id !== id);
+  return { recipes: remaining, selected: (remaining[index] ?? remaining[index - 1])?.id };
+}
