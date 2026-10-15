@@ -10,17 +10,25 @@ export const recipeSchema = z.object({
   tips: z.array(text(600)).max(10),
 });
 export type Recipe = z.infer<typeof recipeSchema>;
+/** Tool arguments: a recipe plus the saved recipe it replaces, if any. */
+export const recipeToolSchema = recipeSchema.extend({
+  replaceRecipeId: z.string().trim().min(1).max(100).optional().describe("id of the saved recipe to update in place. Omit to add a separate new recipe."),
+});
 export type SavedRecipe = Recipe & { id: string; preferencesAtCreation?: Preferences };
-export function createRecipeHandler(show: (recipe: Recipe, id: string) => void, blocked: () => string | undefined = () => undefined) {
+export function createRecipeHandler(show: (recipe: Recipe, id: string, replaceRecipeId?: string) => boolean | void, blocked: () => string | undefined = () => undefined) {
   const results = new Map<string, string>();
   return (args: unknown, id: string): string => {
     const previous = results.get(id);
     if (previous !== undefined) return previous;
     const reason = blocked();
     if (reason) { results.set(id, reason); return reason; }
-    const parsed = recipeSchema.safeParse(args);
-    const result = parsed.success ? "Recipe displayed in the kitchen." : `Recipe not displayed: ${z.prettifyError(parsed.error)}`;
-    if (parsed.success) show(parsed.data, id);
+    const parsed = recipeToolSchema.safeParse(args);
+    let result: string;
+    if (parsed.success) {
+      const { replaceRecipeId, ...recipe } = parsed.data;
+      // show() reports whether the target existed; otherwise the recipe was added as new.
+      result = show(recipe, id, replaceRecipeId) === true ? "Recipe updated in place in the kitchen." : "Recipe displayed in the kitchen as a new recipe.";
+    } else result = `Recipe not displayed: ${z.prettifyError(parsed.error)}`;
     results.set(id, result);
     return result;
   };

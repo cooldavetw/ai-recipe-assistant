@@ -65,7 +65,7 @@ test("explicit revisions bypass debounce, stay explicit across edits and preserv
   f.queue.offer(initial, "revise", recipe);
   await f.queue.flush(false, f.send);
   assert.equal(f.sent[0].kind, "revise");
-  assert.match(actionInstructions(f.sent[0]), /原食譜保留/);
+  assert.match(actionInstructions(f.sent[0]), /直接更新這份食譜/);
   assert.match(actionInstructions(f.sent[0]), /Rice/);
   f.queue.offer(initial, "revise", recipe);
   f.queue.offer({ ...initial, servings: "4" }); f.time(1000);

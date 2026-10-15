@@ -45,11 +45,11 @@ export function revisionActionQuestion(update: KitchenUpdate | undefined, langua
     const summary = changes.join(language === "en" ? ", " : "、");
     const title = update.recipe?.title ?? "";
     return { topic: "preference_revision", question: language === "en" ? `Apply ${summary} to “${title}”?` : `要將「${title}」調整為${summary}嗎？`, options: language === "en" ? [
-      { label: "Apply new settings", answer: `Yes, revise “${title}” for ${summary} using my latest dietary preferences, allergies and serving count. Keep the original recipe.` },
+      { label: "Apply new settings", answer: `Yes, revise “${title}” for ${summary} using my latest dietary preferences, allergies and serving count. Update this recipe.` },
       { label: "Other changes", answer: "I also want other changes. Please ask what else I want before revising." },
       { label: "Keep the original", answer: "Cancel this revision and keep the original recipe unchanged." },
     ] : [
-      { label: "套用新設定", answer: `確認將「${title}」調整為${summary}，並遵守最新飲食偏好、過敏限制與用餐人數。請保留原食譜。` },
+      { label: "套用新設定", answer: `確認將「${title}」調整為${summary}，並遵守最新飲食偏好、過敏限制與用餐人數。請直接更新這份食譜。` },
       { label: "還有其他調整", answer: "我還想做其他調整，請先問我還要修改什麼，再修改食譜。" },
       { label: "保留原食譜", answer: "取消這次修改，請保留原食譜。" },
     ] };
@@ -63,10 +63,10 @@ export function revisionActionQuestion(update: KitchenUpdate | undefined, langua
     topic: "ingredient_remove",
     question: language === "en" ? `Remove ${name} from “${title}”?` : `要從「${title}」移除${name}嗎？`,
     options: language === "en" ? [
-      { label: "Confirm removal", answer: `Yes, remove ${name} from “${title}” and adjust the cooking steps as needed. Generate a revised recipe and keep the original.` },
+      { label: "Confirm removal", answer: `Yes, remove ${name} from “${title}” and adjust the cooking steps as needed. Update this recipe.` },
       { label: "Use a substitute", answer: `I’d like to replace ${name} in “${title}”. Please suggest suitable substitutes and ask me to choose before revising.` }, cancel,
     ] : [
-      { label: "確認移除", answer: `確認從「${title}」移除${name}，並調整相關料理步驟。請產生新版本並保留原食譜。` },
+      { label: "確認移除", answer: `確認從「${title}」移除${name}，並調整相關料理步驟。請直接更新這份食譜。` },
       { label: "改用替代食材", answer: `我想替換「${title}」的${name}，請建議合適的替代食材，等我選擇後再修改食譜。` }, cancel,
     ],
   };
@@ -74,12 +74,12 @@ export function revisionActionQuestion(update: KitchenUpdate | undefined, langua
     topic: "ingredient_increase",
     question: language === "en" ? `How much more ${name}? Current amount: ${ingredient?.quantity ?? ""}.` : `想增加多少${name}？目前用量：${ingredient?.quantity ?? ""}。`,
     options: language === "en" ? [
-      { label: "1.5× the amount", answer: `Use 1.5 times the original ${name} amount in “${title}”. If the quantity is vague, ask me for a concrete amount first; otherwise revise the recipe and retain the original.` },
-      { label: "Double the amount", answer: `Double the original ${name} amount in “${title}”. If the quantity is vague, ask me for a concrete amount first; otherwise revise the recipe and retain the original.` },
+      { label: "1.5× the amount", answer: `Use 1.5 times the original ${name} amount in “${title}”. If the quantity is vague, ask me for a concrete amount first; otherwise update this recipe.` },
+      { label: "Double the amount", answer: `Double the original ${name} amount in “${title}”. If the quantity is vague, ask me for a concrete amount first; otherwise update this recipe.` },
       { label: "Choose an amount", answer: `I want to specify the amount of ${name} in “${title}”. Please ask me for the amount and unit before revising.` }, cancel,
     ] : [
-      { label: "增加至 1.5 倍", answer: `將「${title}」的${name}增加至原用量的 1.5 倍。如果原用量不明確，請先確認具體數量；否則請修改食譜並保留原版本。` },
-      { label: "增加至 2 倍", answer: `將「${title}」的${name}增加至原用量的 2 倍。如果原用量不明確，請先確認具體數量；否則請修改食譜並保留原版本。` },
+      { label: "增加至 1.5 倍", answer: `將「${title}」的${name}增加至原用量的 1.5 倍。如果原用量不明確，請先確認具體數量；否則請直接更新這份食譜。` },
+      { label: "增加至 2 倍", answer: `將「${title}」的${name}增加至原用量的 2 倍。如果原用量不明確，請先確認具體數量；否則請直接更新這份食譜。` },
       { label: "自訂用量", answer: `我想自訂「${title}」的${name}用量，請先詢問數量與單位，再修改食譜。` }, cancel,
     ],
   };

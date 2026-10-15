@@ -11,12 +11,23 @@ test("recipe schema rejects incomplete or unreasonable recipes", () => {
 });
 test("tool validates and displays a recipe only once per call", () => {
   const calls: string[] = [];
-  const handler = createRecipeHandler((_, id) => calls.push(id));
+  const handler = createRecipeHandler((_, id) => { calls.push(id); });
   assert.match(handler(recipe, "one"), /displayed/);
   handler(recipe, "one");
   assert.deepEqual(calls, ["one"]);
   assert.match(handler({ title: "bad" }, "two"), /not displayed/);
   assert.deepEqual(calls, ["one"]);
+});
+test("revisions name the recipe they replace; the tool reports whether it was updated", () => {
+  const saved = new Set(["recipe-1"]);
+  const calls: { recipe: unknown; replaceRecipeId?: string }[] = [];
+  const handler = createRecipeHandler((shown, _, replaceRecipeId) => { calls.push({ recipe: shown, replaceRecipeId }); return replaceRecipeId !== undefined && saved.has(replaceRecipeId); });
+  assert.match(handler({ ...recipe, replaceRecipeId: "recipe-1" }, "a"), /updated in place/);
+  assert.match(handler({ ...recipe, replaceRecipeId: "missing" }, "b"), /as a new recipe/);
+  assert.match(handler(recipe, "c"), /as a new recipe/);
+  assert.deepEqual(calls.map(call => call.replaceRecipeId), ["recipe-1", "missing", undefined]);
+  // The id is routing data, not part of the stored recipe.
+  assert.deepEqual(calls[0].recipe, recipe);
 });
 test("API URLs preserve hosting prefixes", () => {
   assert.equal(backendUrl("agent", "https://example.test/fastapi-prod/7/api/"), "https://example.test/fastapi-prod/7/api/agent");
@@ -37,7 +48,7 @@ test("UI clarification cannot add recipes; later chat requests can", async () =>
   const { blockedRecipeReason } = await import("../src/lib/kitchen");
   let kind: "change" | "revise" | undefined = "revise";
   const displayed: string[] = [];
-  const handler = createRecipeHandler((_, id) => displayed.push(id), () => blockedRecipeReason(kind));
+  const handler = createRecipeHandler((_, id) => { displayed.push(id); }, () => blockedRecipeReason(kind));
   assert.match(handler(recipe, "clarify"), /clarification required/);
   assert.deepEqual(displayed, []);
   kind = "change";

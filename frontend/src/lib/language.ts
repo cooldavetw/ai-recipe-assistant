@@ -47,6 +47,7 @@ const english: Record<string, string> = {
   "僅保留於本次使用期間": "Saved for this visit",
   "我的食譜": "Your recipes",
   "請助理調整這份食譜": "Ask assistant to revise this recipe",
+  "復原上一版": "Undo last change",
   "下一道美味，正等著你": "SOMETHING GOOD IS ABOUT TO HAPPEN",
   "你的下一道拿手菜，從這裡開始。": "Your next favorite starts here.",
   "告訴料理夥伴，你手邊有哪些食材。": "Tell your kitchen companion what’s on hand.",

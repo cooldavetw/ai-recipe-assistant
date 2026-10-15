@@ -45,7 +45,7 @@ test("focused removal and increase choices survive generic or malformed model qu
       if (kind === "ingredient_increase") {
         assert.ok(question.options[0].answer.includes("1.5"));
         assert.ok(question.options[0].answer.includes(language === "en" ? "vague" : "不明確"));
-      } else assert.ok(question.options[0].answer.includes(language === "en" ? "keep the original" : "保留原食譜"));
+      } else assert.ok(question.options[0].answer.includes(language === "en" ? "Update this recipe" : "直接更新這份食譜"));
     }
   }
 });
