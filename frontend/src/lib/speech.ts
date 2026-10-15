@@ -68,12 +68,26 @@ export async function fetchSpeech(text: string, language: Language, signal?: Abo
   return response.blob();
 }
 
-/** Plays one clip at a time; starting another or calling stop() interrupts the current one. */
+const SILENCE = "data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+
+/**
+ * Plays one clip at a time; starting another or calling stop() interrupts the current one.
+ * Spoken replies start seconds after the user's last tap, which Safari treats as
+ * autoplay. One audio element is unlocked during a tap and reused for every clip.
+ */
 export class SpeechPlayer {
   private controller?: AbortController;
+  private element?: HTMLAudioElement;
   private audio?: HTMLAudioElement;
   private url?: string;
   constructor(private onChange: (key: string | undefined, loading: boolean) => void) {}
+  /** Call from a tap or key press so later, delayed playback is allowed. */
+  unlock() {
+    if (this.element || typeof Audio === "undefined") return;
+    const element = new Audio(SILENCE);
+    this.element = element;
+    element.play().then(() => { if (this.audio !== element) element.pause(); }).catch(() => { this.element = undefined; });
+  }
   async play(key: string, text: string, language: Language) {
     this.stop();
     const controller = new AbortController();
@@ -83,7 +97,9 @@ export class SpeechPlayer {
       const blob = await fetchSpeech(text, language, controller.signal);
       if (controller.signal.aborted) return;
       this.url = URL.createObjectURL(blob);
-      const audio = new Audio(this.url);
+      const audio = this.element ?? new Audio();
+      this.element = audio;
+      audio.src = this.url;
       this.audio = audio;
       audio.onended = () => { if (this.audio === audio) this.stop(); };
       await audio.play();

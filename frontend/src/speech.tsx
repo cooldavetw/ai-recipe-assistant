@@ -23,7 +23,17 @@ export function SpeechProvider({ available, children }: { available: boolean; ch
   const [error, setError] = useState<string>();
   const current = useRef<string | undefined>(undefined);
   const [player] = useState(() => new SpeechPlayer((key, isLoading) => { current.current = key; setPlaying(key); setLoading(isLoading); }));
-  useEffect(() => () => player.stop(), [player]);
+  useEffect(() => {
+    // Any tap or key press unlocks playback for replies that arrive later.
+    const unlock = () => player.unlock();
+    document.addEventListener("pointerdown", unlock, true);
+    document.addEventListener("keydown", unlock, true);
+    return () => {
+      document.removeEventListener("pointerdown", unlock, true);
+      document.removeEventListener("keydown", unlock, true);
+      player.stop();
+    };
+  }, [player]);
   useEffect(() => {
     if (!error) return;
     const timer = window.setTimeout(() => setError(undefined), 6000);
