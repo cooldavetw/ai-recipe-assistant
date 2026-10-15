@@ -26,7 +26,7 @@ cp .env.example .env.local
 npm --prefix frontend ci
 ```
 
-Set `OPENAI_API_KEY` in `.env.local`. The key remains on the backend. Optionally set `RECIPE_MODEL` (default `openai:gpt-4o`). Optionally set `TRANSCRIBE_MODEL` (default `gpt-4o-transcribe`) for voice input. `SPEECH_MODEL` (default `gpt-4o-mini-tts`) and `SPEECH_VOICE` (default `coral`) control spoken replies. Exported environment variables take precedence over `.env.local`.
+Set `OPENAI_API_KEY` in `.env.local`. The key remains on the backend. Optionally set `RECIPE_MODEL` (default `openai:gpt-4o`). Optionally set `TRANSCRIBE_MODEL` (default `gpt-4o-transcribe`) for voice input. `SPEECH_MODEL` (default `gpt-4o-mini-tts`) and `SPEECH_VOICE` (default `shimmer`, a soft voice) control spoken replies. Exported environment variables take precedence over `.env.local`.
 
 ```sh
 npm --prefix frontend run build

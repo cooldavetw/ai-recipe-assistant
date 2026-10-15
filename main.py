@@ -61,8 +61,8 @@ async def transcribe_audio(audio: bytes, content_type: str, language: str) -> st
 # OpenAI's speech input limit is 4096 characters; the browser trims longer replies.
 MAX_SPEECH_CHARS = 4000
 SPEECH_INSTRUCTIONS = {
-    "zh-Hant": "用自然、親切的台灣華語朗讀，語速適中、咬字清楚，像在廚房裡陪你做菜的朋友。",
-    "en": "Speak in a warm, friendly and clear voice at a relaxed pace, like a friend helping in the kitchen.",
+    "zh-Hant": "用輕柔、溫和的語氣朗讀台灣華語，語速稍慢、音量平穩，句子之間自然停頓，像在廚房裡輕聲陪你做菜的朋友。",
+    "en": "Speak in a soft, gentle and calm voice, slightly slower than normal, with a steady volume and natural pauses, like a friend quietly helping in the kitchen.",
 }
 
 
@@ -75,7 +75,7 @@ async def synthesize_speech(text: str, language: str) -> bytes:
     """Text to MP3 for spoken replies and recipe steps."""
     result = await openai_client().audio.speech.create(
         model=os.getenv("SPEECH_MODEL", "gpt-4o-mini-tts"),
-        voice=os.getenv("SPEECH_VOICE", "coral"),
+        voice=os.getenv("SPEECH_VOICE", "shimmer"),
         input=text,
         instructions=SPEECH_INSTRUCTIONS[language],
         response_format="mp3",
