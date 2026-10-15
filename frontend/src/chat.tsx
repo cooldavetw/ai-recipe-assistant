@@ -12,7 +12,7 @@ import { RecipeCard } from "./recipe-card";
 import { PushToTalkProvider, SendWithVoice, VoiceStatus, usePushToTalk } from "./voice-button";
 import { useSpeech } from "./speech";
 import { readReplyVoice, replyToSpeak, saveReplyVoice, type ReplyVoice } from "./lib/speech";
-type ChatProps = { onIngredients: (ingredients: string[]) => void; onRecipe: (recipe: Recipe, id: string, usedPreferences?: Preferences, replaceRecipeId?: string) => boolean | void; onSelectRecipe: (id: string) => SavedRecipe | undefined; recipes: SavedRecipe[]; preferences: Preferences; currentRecipe?: SavedRecipe; ingredientAction?: IngredientAction; revision: number };
+type ChatProps = { onIngredients: (ingredients: string[]) => void; onRecipe: (recipe: Recipe, id: string, usedPreferences?: Preferences, replaceRecipeId?: string) => Recipe | void; onSelectRecipe: (id: string) => SavedRecipe | undefined; recipes: SavedRecipe[]; preferences: Preferences; currentRecipe?: SavedRecipe; ingredientAction?: IngredientAction; revision: number };
 export function Chat(props: ChatProps) {
   const [agents] = useState(() => ({ default: new HttpAgent({ url: backendUrl("agent") }) }));
   return <CopilotKitProvider agents__unsafe_dev_only={agents} enableInspector={false} showIntelligenceIndicator={false}><RecipeCopilot {...props}/></CopilotKitProvider>;
@@ -191,7 +191,7 @@ function RecipeCopilot({ onIngredients, onRecipe, onSelectRecipe, recipes, prefe
     { title: t("30 分鐘晚餐"), message: `${t("請推薦 30 分鐘內可以完成的晚餐。")}` },
     { title: t("暖心一鍋料理"), message: `${t("請設計一道暖心的一鍋料理。")}` },
   ], available: showRevisionChoices ? agent.isRunning ? "disabled" : "after-first-message" : "before-first-message" }, [preferenceJson, language, showRevisionChoices, agent.isRunning]);
-  useFrontendTool({ name: "generate_recipe", description: `Display a complete recipe in the kitchen. To revise an existing recipe, set replaceRecipeId to its id (from revisionTarget or selectedRecipe) so it is updated in place. Omit replaceRecipeId for a different dish or when the user asks for a separate copy or to keep the original. Current user preferences: ${preferenceJson}. Honor these unless the user explicitly changes them.`, parameters: recipeToolSchema, followUp: false,
+  useFrontendTool({ name: "generate_recipe", description: `Display a complete recipe in the kitchen. To revise an existing recipe, set replaceRecipeId to its id (from revisionTarget or selectedRecipe) so it is updated in place. Omit replaceRecipeId for a different dish or when the user asks for a separate copy or to keep the original. Current user preferences: ${preferenceJson}. Honor these unless the user explicitly changes them.`, parameters: recipeToolSchema, followUp: true,
     handler: async (args, { toolCall }) => { setError(undefined); return handler(args, toolCall.id); },
     render: ({ args, status, result }) => {
       if (status === ToolCallStatus.Complete && result?.includes("clarification required")) return <p role="status">{t("你希望如何調整這份食譜？請在對話中告訴助理。")}</p>;

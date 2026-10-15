@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRecipeHandler, recipeBookSummary, recipeSchema, removeRecipe } from "../src/lib/recipe";
+import { createRecipeHandler, describeRecipeChanges, recipeBookSummary, recipeSchema, removeRecipe } from "../src/lib/recipe";
 import { backendUrl, getBackendStatus } from "../src/lib/backend";
 const recipe = { title: "Tomato rice", description: "A simple supper", cuisine: "Mediterranean-inspired", servings: 2, totalMinutes: 25, ingredients: [{ name: "rice", quantity: "1 cup", optional: false }], steps: ["Cook rice following the package instructions."], tips: [] };
 test("recipe schema rejects incomplete or unreasonable recipes", () => {
@@ -21,13 +21,21 @@ test("tool validates and displays a recipe only once per call", () => {
 test("revisions name the recipe they replace; the tool reports whether it was updated", () => {
   const saved = new Set(["recipe-1"]);
   const calls: { recipe: unknown; replaceRecipeId?: string }[] = [];
-  const handler = createRecipeHandler((shown, _, replaceRecipeId) => { calls.push({ recipe: shown, replaceRecipeId }); return replaceRecipeId !== undefined && saved.has(replaceRecipeId); });
-  assert.match(handler({ ...recipe, replaceRecipeId: "recipe-1" }, "a"), /updated in place/);
+  const handler = createRecipeHandler((shown, _, replaceRecipeId) => { calls.push({ recipe: shown, replaceRecipeId }); return replaceRecipeId !== undefined && saved.has(replaceRecipeId) ? { ...recipe, servings: 1 } : undefined; });
+  assert.match(handler({ ...recipe, replaceRecipeId: "recipe-1" }, "a"), /updated in place.*Changes: servings: 1 → 2/);
   assert.match(handler({ ...recipe, replaceRecipeId: "missing" }, "b"), /as a new recipe/);
   assert.match(handler(recipe, "c"), /as a new recipe/);
   assert.deepEqual(calls.map(call => call.replaceRecipeId), ["recipe-1", "missing", undefined]);
   // The id is routing data, not part of the stored recipe.
   assert.deepEqual(calls[0].recipe, recipe);
+});
+test("in-place updates report the real differences", () => {
+  const after = { ...recipe, title: "Spicy tomato rice", servings: 4, ingredients: [{ name: "Rice", quantity: "2 cups", optional: false }, { name: "chili", quantity: "1", optional: false }], steps: ["Cook rice.", "Add chili."] };
+  assert.deepEqual(describeRecipeChanges(recipe, after), [
+    'title: "Tomato rice" → "Spicy tomato rice"', "servings: 2 → 4", "Rice: 1 cup → 2 cups", "added ingredient: chili (1)", "steps: 1 → 2",
+  ]);
+  assert.deepEqual(describeRecipeChanges(recipe, { ...recipe, ingredients: [{ name: "salt", quantity: "pinch", optional: false }], steps: ["Simmer."] }), ["added ingredient: salt (pinch)", "removed ingredient: rice", "rewritten steps: 1"]);
+  assert.deepEqual(describeRecipeChanges(recipe, recipe), []);
 });
 test("recipe book index is compact and numbered in tab order", () => {
   const book = [{ ...recipe, id: "a" }, { ...recipe, id: "b", title: "Curry" }];

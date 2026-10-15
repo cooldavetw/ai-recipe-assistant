@@ -32,19 +32,19 @@ export function KitchenApp({ setLanguage }: { setLanguage: (language: Language) 
   const [check, setCheck] = useState(0);
   useEffect(() => { let active = true; setStatus("checking"); getBackendStatus().then(value => { if (active) setStatus(value); }); return () => { active = false; }; }, [check]);
   const [previousVersions, setPreviousVersions] = useState<Record<string, SavedRecipe>>({});
-  /** Returns true when an existing recipe was updated in place rather than added. */
-  function addRecipe(recipe: Recipe, id: string, usedPreferences?: Preferences, replaceRecipeId?: string): boolean {
+  /** Returns the version it replaced when an existing recipe was updated in place. */
+  function addRecipe(recipe: Recipe, id: string, usedPreferences?: Preferences, replaceRecipeId?: string): SavedRecipe | undefined {
     const saved = (recipeId: string): SavedRecipe => ({ ...recipe, id: recipeId, preferencesAtCreation: structuredClone(usedPreferences ?? { diet, servings, allergies: allergies.trim(), ingredients }) });
     const target = replaceRecipeId ? recipes.find(item => item.id === replaceRecipeId) : undefined;
     if (target) {
       setRecipes(previous => previous.map(item => item.id === target.id ? saved(target.id) : item));
       setPreviousVersions(previous => ({ ...previous, [target.id]: target }));
       setSelected(target.id);
-      return true;
+      return target;
     }
     setRecipes(previous => previous.some(item => item.id === id) ? previous : [...previous, saved(id)].slice(-50));
     setSelected(id);
-    return false;
+    return undefined;
   }
   function undoRevision(id: string) {
     const previousVersion = previousVersions[id];
